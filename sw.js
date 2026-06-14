@@ -1,135 +1,76 @@
 /* ============================================
    MEDCARE REMINDER - SERVICE WORKER
-   Fixed for GitHub Pages subfolder hosting
+   GitHub Pages compatible version
 ============================================ */
 
-const CACHE_NAME = 'medcare-v2.0.0';
-const BASE = '/medcare-app';
+const CACHE_NAME = 'medcare-v3.0.0';
+
+// Use relative paths — works on any host including GitHub Pages
 const ASSETS_TO_CACHE = [
-  BASE + '/',
-  BASE + '/index.html',
-  BASE + '/css/style.css',
-  BASE + '/js/app.js',
-  BASE + '/manifest.json',
-  BASE + '/icons/icon-72.png',
-  BASE + '/icons/icon-96.png',
-  BASE + '/icons/icon-128.png',
-  BASE + '/icons/icon-144.png',
-  BASE + '/icons/icon-152.png',
-  BASE + '/icons/icon-192.png',
-  BASE + '/icons/icon-384.png',
-  BASE + '/icons/icon-512.png'
+  './',
+  './index.html',
+  './css/style.css',
+  './js/app.js',
+  './manifest.json',
+  './icons/icon-72.png',
+  './icons/icon-96.png',
+  './icons/icon-128.png',
+  './icons/icon-144.png',
+  './icons/icon-152.png',
+  './icons/icon-192.png',
+  './icons/icon-384.png',
+  './icons/icon-512.png'
 ];
 
-// Install - cache all assets
+// Install — cache all assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE.filter(url => !url.startsWith('http')));
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(ASSETS_TO_CACHE))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate - clean old caches
+// Activate — delete old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter(name => name !== CACHE_NAME)
-          .map(name => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch — cache first, then network
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
   if (event.request.method !== 'GET') return;
-
-  // Skip chrome-extension requests
   if (event.request.url.startsWith('chrome-extension://')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
 
-      return fetch(event.request).then((response) => {
-        // Don't cache bad responses or non-basic requests
+      return fetch(event.request).then(response => {
         if (!response || response.status !== 200 || response.type === 'opaque') {
           return response;
         }
-
-        // Cache successful responses
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         return response;
       }).catch(() => {
-        // Return offline fallback for navigation requests
+        // Offline fallback — return cached index.html
         if (event.request.mode === 'navigate') {
-          return caches.match(BASE + '/index.html');
+          return caches.match('./index.html');
         }
       });
     })
   );
 });
 
-// Push notifications
-self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
-  const options = {
-    body: data.body || 'Time to take your medicine!',
-    icon: BASE + '/icons/icon-192.png',
-    badge: BASE + '/icons/icon-72.png',
-    vibrate: [300, 100, 300],
-    data: data,
-    actions: [
-      { action: 'taken', title: '✅ Taken' },
-      { action: 'snooze', title: '⏰ Snooze' }
-    ],
-    requireInteraction: true
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title || '💊 MedCare Reminder', options)
-  );
-});
-
-// Notification click
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  if (event.action === 'taken') {
-    // Could post message to client to mark as taken
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then(clientList => {
-        for (const client of clientList) {
-          client.postMessage({ action: 'markTaken', data: event.notification.data });
-        }
-      })
-    );
-  }
-
-  event.waitUntil(
-    clients.openWindow('/')
-  );
-});
-
-// ============================================
-// BACKGROUND ALARM CHECKER
-// Runs every 60s inside the Service Worker.
-// Posts a message to the active page so the
-// page's Reminders._poll() can fire the alarm.
-// ============================================
-let bgCheckInterval = null;
-
+// Background tick — tells the page to poll for alarms
+let bgInterval = null;
 self.addEventListener('activate', () => {
-  if (bgCheckInterval) clearInterval(bgCheckInterval);
-  bgCheckInterval = setInterval(async () => {
+  if (bgInterval) clearInterval(bgInterval);
+  bgInterval = setInterval(async () => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     clients.forEach(client => client.postMessage({ type: 'MC_BG_TICK' }));
   }, 60_000);
@@ -137,7 +78,6 @@ self.addEventListener('activate', () => {
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'MC_KEEPALIVE') {
-    // Page is alive — SW responds to confirm it's running
     event.source.postMessage({ type: 'MC_SW_ALIVE' });
   }
 });
