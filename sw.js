@@ -1,24 +1,24 @@
 /* ============================================
    MEDCARE REMINDER - SERVICE WORKER
-   Enables offline capability & caching
+   Fixed for GitHub Pages subfolder hosting
 ============================================ */
 
-const CACHE_NAME = 'medcare-v1.0.0';
+const CACHE_NAME = 'medcare-v2.0.0';
+const BASE = '/medcare-app';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/js/app.js',
-  '/manifest.json',
-  '/icons/icon-72.png',
-  '/icons/icon-96.png',
-  '/icons/icon-128.png',
-  '/icons/icon-144.png',
-  '/icons/icon-152.png',
-  '/icons/icon-192.png',
-  '/icons/icon-384.png',
-  '/icons/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Lora:wght@400;600;700&display=swap'
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/css/style.css',
+  BASE + '/js/app.js',
+  BASE + '/manifest.json',
+  BASE + '/icons/icon-72.png',
+  BASE + '/icons/icon-96.png',
+  BASE + '/icons/icon-128.png',
+  BASE + '/icons/icon-144.png',
+  BASE + '/icons/icon-152.png',
+  BASE + '/icons/icon-192.png',
+  BASE + '/icons/icon-384.png',
+  BASE + '/icons/icon-512.png'
 ];
 
 // Install - cache all assets
@@ -71,7 +71,7 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => {
         // Return offline fallback for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return caches.match(BASE + '/index.html');
         }
       });
     })
@@ -83,8 +83,8 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
   const options = {
     body: data.body || 'Time to take your medicine!',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-72.png',
+    icon: BASE + '/icons/icon-192.png',
+    badge: BASE + '/icons/icon-72.png',
     vibrate: [300, 100, 300],
     data: data,
     actions: [
