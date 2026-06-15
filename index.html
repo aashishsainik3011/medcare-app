@@ -62,22 +62,26 @@
       </div>
 
       <div class="stats-row">
-        <div class="stat-card">
+        <button class="stat-card stat-card--clickable" onclick="App.showStatDetail('today')">
           <span class="stat-number" id="stat-today">0</span>
           <span class="stat-label">Today's Medicines</span>
-        </div>
-        <div class="stat-card stat-card--purple-light">
+          <span class="stat-arrow">›</span>
+        </button>
+        <button class="stat-card stat-card--purple-light stat-card--clickable" onclick="App.showStatDetail('taken')">
           <span class="stat-number" id="stat-taken">0</span>
           <span class="stat-label">Taken Today</span>
-        </div>
-        <div class="stat-card stat-card--orange">
+          <span class="stat-arrow">›</span>
+        </button>
+        <button class="stat-card stat-card--orange stat-card--clickable" onclick="App.showStatDetail('upcoming')">
           <span class="stat-number" id="stat-upcoming">0</span>
           <span class="stat-label">Upcoming</span>
-        </div>
-        <div class="stat-card stat-card--red">
+          <span class="stat-arrow">›</span>
+        </button>
+        <button class="stat-card stat-card--red stat-card--clickable" onclick="App.showStatDetail('missed')">
           <span class="stat-number" id="stat-missed">0</span>
           <span class="stat-label">Missed</span>
-        </div>
+          <span class="stat-arrow">›</span>
+        </button>
       </div>
 
       <div class="next-reminder" id="next-reminder-card" style="display:none">
