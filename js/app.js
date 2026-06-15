@@ -615,6 +615,136 @@ const App = {
     this.navigate(prev);
   },
 
+  // ── DASHBOARD STAT CARDS ──────────────────
+  showStatDetail(type) {
+    const medicines = DB.get('medicines') || [];
+    const history   = DB.get('history')   || [];
+    const today     = Util.today();
+    const nowMin    = Util.timeToMinutes(Util.now());
+
+    const titles = {
+      today:    "Today's Medicines",
+      taken:    "Taken Today",
+      upcoming: "Upcoming Reminders",
+      missed:   "Missed Today"
+    };
+
+    let rows = [];
+
+    if (type === 'today') {
+      // All slots scheduled for today
+      medicines.forEach(med => {
+        if (!med.active) return;
+        if (med.startDate && today < med.startDate) return;
+        if (med.endDate   && today > med.endDate)   return;
+        if (!Util.isScheduledOnDate(med, today))    return;
+        (med.reminders || []).forEach(r => {
+          const hist = history.find(h =>
+            h.medicineId === med.id && h.date === today && h.scheduledTime === r.time
+          );
+          const status = hist ? hist.status : 'pending';
+          rows.push({ med, time: r.time, status });
+        });
+      });
+
+    } else if (type === 'taken') {
+      // Taken or taken-late today
+      history
+        .filter(h => h.date === today && (h.status === 'taken' || h.status === 'taken-late'))
+        .forEach(h => {
+          const med = medicines.find(m => m.id === h.medicineId);
+          if (med) rows.push({ med, time: h.scheduledTime, status: 'taken', actual: h.actualTime });
+        });
+
+    } else if (type === 'upcoming') {
+      // Pending slots whose time hasn't passed yet
+      medicines.forEach(med => {
+        if (!med.active) return;
+        if (med.startDate && today < med.startDate) return;
+        if (med.endDate   && today > med.endDate)   return;
+        if (!Util.isScheduledOnDate(med, today))    return;
+        (med.reminders || []).forEach(r => {
+          const rMin = Util.timeToMinutes(r.time);
+          if (rMin <= nowMin) return; // already past
+          const logged = history.some(h =>
+            h.medicineId === med.id && h.date === today && h.scheduledTime === r.time
+          );
+          if (!logged) rows.push({ med, time: r.time, status: 'pending' });
+        });
+      });
+      // Sort by time ascending
+      rows.sort((a, b) => Util.timeToMinutes(a.time) - Util.timeToMinutes(b.time));
+
+    } else if (type === 'missed') {
+      // Missed entries logged today where medicine was actually scheduled
+      history
+        .filter(h => h.date === today && h.status === 'missed')
+        .forEach(h => {
+          const med = medicines.find(m => m.id === h.medicineId);
+          if (!med) return;
+          if (!Util.isScheduledOnDate(med, h.date)) return;
+          rows.push({ med, time: h.scheduledTime, status: 'missed' });
+        });
+    }
+
+    // Build modal content
+    const emptyHtml = `
+      <div style="text-align:center;padding:32px 0;color:var(--text-secondary);">
+        <div style="font-size:48px;margin-bottom:12px">${type === 'missed' ? '✅' : '📋'}</div>
+        <p style="font-weight:700;font-size:var(--font-size-base)">
+          ${type === 'missed' ? 'No missed medicines!' : 'Nothing to show'}
+        </p>
+      </div>`;
+
+    const rowsHtml = rows.map(({ med, time, status, actual }) => {
+      const photoHtml = med.photo
+        ? `<img src="${med.photo}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;border:2px solid var(--border)"/>`
+        : `<div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">${Util.typeEmoji(med.type)}</div>`;
+
+      const badgeColor =
+        status === 'taken' || status === 'taken-late' ? '#3A7D44' :
+        status === 'missed' ? 'var(--red)' :
+        status === 'pending' ? '#9B8FD4' : 'var(--text-secondary)';
+
+      const badgeLabel =
+        status === 'taken' || status === 'taken-late' ? 'Taken' :
+        status === 'missed' ? 'Missed' : 'Pending';
+
+      const timeNote = actual
+        ? `Scheduled ${Util.fmtTime(time)} · Taken ${Util.fmtTime(actual)}`
+        : `Scheduled ${Util.fmtTime(time)}`;
+
+      // Show Mark as Taken button for missed items
+      const actionBtn = status === 'missed'
+        ? `<button onclick="App.closeModal();App.markTaken('${med.id}','${time}','${today}',true)"
+            style="margin-top:8px;width:100%;background:var(--primary);color:white;border:none;border-radius:10px;padding:10px;font-size:14px;font-weight:800;font-family:'Nunito',sans-serif;cursor:pointer;">
+            Mark as Taken
+           </button>`
+        : '';
+
+      return `
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);">
+          ${photoHtml}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:var(--font-size-base);font-weight:800;color:var(--text)">${med.name}</div>
+            <div style="font-size:13px;color:var(--primary);font-weight:700">${med.dosage}</div>
+            <div style="font-size:13px;color:var(--text-secondary);font-weight:600">${timeNote}</div>
+            ${actionBtn}
+          </div>
+          <span style="font-size:12px;font-weight:800;color:white;background:${badgeColor};padding:3px 10px;border-radius:20px;flex-shrink:0;">${badgeLabel}</span>
+        </div>`;
+    }).join('');
+
+    this.showModal(`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="modal-title" style="margin-bottom:0">${titles[type]}</div>
+        <span style="font-size:24px;font-weight:900;color:var(--primary)">${rows.length}</span>
+      </div>
+      ${rows.length === 0 ? emptyHtml : rowsHtml}
+      <button class="modal-btn modal-btn--secondary" style="margin-top:16px" onclick="App.closeModal()">Close</button>
+    `);
+  },
+
   // ── DASHBOARD ─────────────────────────────
   refreshDashboard() {
     this.updateDashboard();
