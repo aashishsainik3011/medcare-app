@@ -1847,3 +1847,200 @@ body.dark-mode .med-card--overdue { background: #2a1500; }
   justify-content: space-between;
   gap: 8px;
 }
+
+/* ============================================
+   SUCCESS ANIMATION
+============================================ */
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(58, 125, 68, 0.92);
+  z-index: 9995;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  backdrop-filter: blur(4px);
+}
+.success-overlay.hidden { display: none !important; }
+
+.success-circle {
+  width: 100px;
+  height: 100px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: success-pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes success-pop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.success-svg {
+  width: 72px;
+  height: 72px;
+}
+.success-ring {
+  stroke-dasharray: 226;
+  stroke-dashoffset: 226;
+}
+@keyframes drawRing {
+  to { stroke-dashoffset: 0; }
+}
+.success-check {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+}
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+.success-label {
+  font-size: 22px;
+  font-weight: 900;
+  color: white;
+  font-family: 'Nunito', sans-serif;
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* Confetti */
+.confetti-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -10px;
+  animation: confetti-fall linear forwards;
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg);   opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* ============================================
+   PULL TO REFRESH
+============================================ */
+.ptr-indicator {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border-radius: 24px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow);
+  z-index: 400;
+  border: 2px solid var(--border);
+}
+.ptr-indicator.hidden { display: none !important; }
+.ptr-spinner {
+  width: 20px; height: 20px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.ptr-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   EMPTY DASHBOARD STATE
+============================================ */
+.dashboard-empty {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 36px 24px;
+  text-align: center;
+  border: 2px dashed var(--border);
+  margin-bottom: 16px;
+}
+.dashboard-empty.hidden { display: none !important; }
+.dash-empty-illustration {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.dash-empty-title {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 10px;
+  font-family: 'Lora', serif;
+}
+.dash-empty-sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.dash-empty-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 18px 28px;
+  font-size: var(--font-size-base);
+  font-weight: 900;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(72,61,139,0.3);
+  transition: transform 0.15s ease;
+}
+.dash-empty-btn:active { transform: scale(0.97); }
+
+/* ============================================
+   STOCK COUNT INPUT
+============================================ */
+.stock-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stock-input-row .form-input {
+  flex: 1;
+}
+.stock-unit {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.field-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+.stock-hint-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* AI Badge on camera screen */
+.ai-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #483D8B, #6A5ACD);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin: 10px 0 16px;
+  letter-spacing: 0.3px;
+}

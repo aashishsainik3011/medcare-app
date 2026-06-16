@@ -233,6 +233,29 @@
         </button>
       </div>
 
+      <!-- Empty state — shown when no medicines added yet -->
+      <div id="dashboard-empty" class="dashboard-empty hidden">
+        <div class="dash-empty-illustration">
+          <svg width="140" height="140" viewBox="0 0 140 140" fill="none">
+            <circle cx="70" cy="70" r="64" fill="#EEEAF8"/>
+            <rect x="35" y="45" width="70" height="70" rx="12" fill="white" stroke="#B8B0E8" stroke-width="2"/>
+            <rect x="35" y="45" width="70" height="22" rx="12" fill="#B8B0E8"/>
+            <rect x="35" y="57" width="70" height="10" fill="#B8B0E8"/>
+            <rect x="47" y="78" width="14" height="14" rx="3" fill="#EEEAF8"/>
+            <rect x="67" y="78" width="14" height="14" rx="3" fill="#EEEAF8"/>
+            <rect x="87" y="78" width="14" height="14" rx="3" fill="#EEEAF8"/>
+            <rect x="47" y="97" width="14" height="14" rx="3" fill="#EEEAF8"/>
+            <rect x="67" y="97" width="14" height="14" rx="3" fill="#EEEAF8"/>
+            <circle cx="100" cy="46" r="20" fill="#483D8B"/>
+            <rect x="94" y="45" width="12" height="2.5" rx="1.25" fill="white"/>
+            <rect x="99" y="40" width="2.5" height="12" rx="1.25" fill="white"/>
+          </svg>
+        </div>
+        <h3 class="dash-empty-title">No Medicines Added Yet</h3>
+        <p class="dash-empty-sub">Add your medicines to start getting reminders and tracking your health.</p>
+        <button class="dash-empty-btn" onclick="App.navigate('add-medicine')">+ Add Your First Medicine</button>
+      </div>
+
       <!-- SOS Button -->
       <button class="sos-btn" id="sos-btn" aria-label="Emergency SOS — hold 2 seconds">
         🆘 EMERGENCY SOS
@@ -350,6 +373,17 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">
+            Current Stock
+            <span class="field-hint">How many tablets/doses do you have?</span>
+          </label>
+          <div class="stock-input-row">
+            <input type="number" id="med-stock" class="form-input" placeholder="e.g. 30" min="0" max="9999"/>
+            <span class="stock-unit" id="stock-unit-label">doses</span>
+          </div>
+          <p class="stock-hint-text">We'll warn you when you have less than 7 days of stock left</p>
+        </div>
+        <div class="form-group">
           <label class="form-label">Notes</label>
           <textarea id="med-notes" class="form-input form-textarea" placeholder="e.g. Take after meals"></textarea>
         </div>
@@ -362,9 +396,10 @@
           <div class="camera-placeholder" id="camera-placeholder">
             <div class="camera-icon"><svg width="52" height="52" viewBox="0 0 52 52" fill="none"><rect x="4" y="14" width="44" height="32" rx="6" fill="#EEEAF8" stroke="#483D8B" stroke-width="2"/><circle cx="26" cy="30" r="9" fill="#B8B0E8" stroke="#483D8B" stroke-width="2"/><circle cx="26" cy="30" r="5" fill="#6A5ACD"/><rect x="18" y="8" width="16" height="8" rx="3" fill="#9B8FD4" stroke="#483D8B" stroke-width="1.5"/><circle cx="40" cy="20" r="3" fill="#9B8FD4"/></svg></div>
             <p class="camera-hint">Take a photo of your medicine strip, bottle or prescription</p>
+            <div class="ai-badge">✨ Powered by AI — reads labels automatically</div>
             <div class="camera-btns">
-              <button class="cam-btn cam-btn--primary" onclick="App.openCamera()">📸 Open Camera</button>
-              <button class="cam-btn cam-btn--secondary" onclick="App.openGallery()">🖼️ Choose from Gallery</button>
+              <button class="cam-btn cam-btn--primary" onclick="App.openCamera()">Open Camera</button>
+              <button class="cam-btn cam-btn--secondary" onclick="App.openGallery()">Choose from Gallery</button>
             </div>
             <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="App.handleImageCapture(event)" />
             <input type="file" id="gallery-input" accept="image/*" style="display:none" onchange="App.handleImageCapture(event)" />
@@ -815,6 +850,24 @@
       <button class="alarm-btn-skip" id="alarm-btn-skip">⏩ Skip This Dose</button>
     </div>
   </div>
+</div>
+
+<!-- SUCCESS ANIMATION -->
+<div id="success-overlay" class="success-overlay hidden">
+  <div class="success-circle">
+    <svg class="success-svg" viewBox="0 0 80 80" fill="none">
+      <circle cx="40" cy="40" r="36" stroke="white" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" class="success-ring"/>
+      <path d="M24 40L35 51L56 29" stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" class="success-check"/>
+    </svg>
+  </div>
+  <p class="success-label" id="success-label">Taken!</p>
+  <div class="confetti-container" id="confetti-container"></div>
+</div>
+
+<!-- PULL TO REFRESH INDICATOR -->
+<div id="ptr-indicator" class="ptr-indicator hidden">
+  <div class="ptr-spinner"></div>
+  <span class="ptr-label">Refreshing…</span>
 </div>
 
 <!-- TOAST -->

@@ -106,56 +106,6 @@ const Util = {
 // ============================================
 // OCR ENGINE (Tesseract.js via CDN or fallback)
 // ============================================
-const OCR = {
-  async extractText(imageData) {
-    // Try Tesseract.js if loaded
-    if (typeof Tesseract !== 'undefined') {
-      try {
-        const result = await Tesseract.recognize(imageData, 'eng', {
-          logger: () => {}
-        });
-        return result.data.text;
-      } catch (e) {
-        console.warn('Tesseract error:', e);
-      }
-    }
-    // Fallback: simulate OCR with common medicine patterns
-    return null;
-  },
-
-  parseMedicineText(text) {
-    if (!text) return { name: '', dosage: '', extra: '' };
-
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-    // Dosage patterns: 500mg, 650 mg, 10ml, 5mg/5ml
-    const dosageRegex = /(\d+\.?\d*)\s*(mg|mcg|ml|g|iu|%|mg\/ml|mg\/5ml)/i;
-    let dosage = '';
-    let name = '';
-    let extra = '';
-
-    for (const line of lines) {
-      const dMatch = line.match(dosageRegex);
-      if (dMatch && !dosage) {
-        dosage = dMatch[0].replace(/\s+/g, '');
-        // Name is usually on same or previous line
-        const namePart = line.replace(dosageRegex, '').trim();
-        if (namePart.length > 2) name = namePart;
-      } else if (!name && line.length > 3 && line.length < 40) {
-        // First reasonable-length line is likely the name
-        name = line;
-      } else if (name && dosage && !extra && line.length > 3) {
-        extra = line;
-      }
-    }
-
-    // Clean up name
-    name = name.replace(/[^a-zA-Z0-9\s\-\+]/g, '').trim();
-
-    return { name: name || '', dosage: dosage || '', extra: extra || '' };
-  }
-};
-
 // ============================================
 // ALARM AUDIO ENGINE
 // Uses Web Audio API — no audio file needed.
@@ -966,6 +916,51 @@ const App = {
     } else {
       nextCard.style.display = 'none';
     }
+
+    // Empty state — show when no medicines at all
+    const emptyEl = document.getElementById('dashboard-empty');
+    if (emptyEl) {
+      emptyEl.classList.toggle('hidden', medicines.length > 0);
+    }
+
+    // Low stock check — warn if any tracked medicine has < 7 days supply
+    this._checkLowStock(medicines);
+  },
+
+  _checkLowStock(medicines) {
+    const banner = document.getElementById('low-stock-banner');
+    if (!banner) return;
+
+    const lowMeds = medicines.filter(m => {
+      if (!m.active) return false;
+      if (m.stock === null || m.stock === undefined) return false;
+      // Calculate doses per day
+      const dosesPerDay = m.frequency === 'daily'
+        ? (m.reminders || []).length
+        : m.frequency === 'weekly'
+        ? (m.reminders || []).length / 7
+        : 1;
+      const daysLeft = dosesPerDay > 0 ? m.stock / dosesPerDay : 999;
+      return daysLeft < 7 && daysLeft >= 0;
+    });
+
+    if (lowMeds.length === 0) {
+      banner.classList.add('hidden');
+      return;
+    }
+
+    banner.classList.remove('hidden');
+    const detail = document.getElementById('low-stock-detail');
+    if (detail) {
+      if (lowMeds.length === 1) {
+        const m = lowMeds[0];
+        const dosesPerDay = m.frequency === 'daily' ? (m.reminders || []).length : 1;
+        const daysLeft = dosesPerDay > 0 ? Math.floor(m.stock / dosesPerDay) : 0;
+        detail.textContent = `${m.name} — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} of stock left`;
+      } else {
+        detail.textContent = `${lowMeds.length} medicines need refilling soon`;
+      }
+    }
   },
 
   onFrequencyChange(val) {
@@ -1034,7 +1029,6 @@ const App = {
 
     const frequency = document.getElementById('med-frequency').value;
 
-    // Validate weekday selection for weekly medicines
     let weekdays = [];
     if (frequency === 'weekly') {
       weekdays = this.getSelectedWeekdays();
@@ -1044,17 +1038,22 @@ const App = {
       }
     }
 
+    const stockVal = document.getElementById('med-stock')?.value;
+    const stock = stockVal && stockVal !== '' ? parseInt(stockVal) : null;
+
     const medicine = {
       id: Util.uid(),
       name,
       dosage: dosage || '',
       type: this.currentMedicineType,
       frequency,
-      weekdays,  // empty array for daily/monthly/as-needed
+      weekdays,
       reminders: this.collectReminders('#manual-entry'),
       startDate: document.getElementById('med-start').value || Util.today(),
       endDate: document.getElementById('med-end').value || '',
       notes: document.getElementById('med-notes').value.trim(),
+      stock,          // null means not tracking
+      stockInitial: stock,
       photo: null,
       active: true,
       createdAt: Date.now()
@@ -1106,7 +1105,7 @@ const App = {
     this.currentMedicineType = 'tablet';
   },
 
-  // ── CAMERA / OCR ──────────────────────────
+  // ── CAMERA / OCR via Claude Vision API ────
   openCamera() {
     document.getElementById('camera-input').click();
   },
@@ -1125,6 +1124,7 @@ const App = {
   async handleImageCapture(event) {
     const file = event.target.files[0];
     if (!file) return;
+    event.target.value = '';
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -1136,46 +1136,140 @@ const App = {
       document.getElementById('camera-placeholder').classList.add('hidden');
       document.getElementById('camera-preview').classList.remove('hidden');
 
-      // Show OCR panel
+      // Show scanning panel
       document.getElementById('ocr-result').classList.remove('hidden');
       document.getElementById('ocr-spinner').classList.remove('hidden');
       document.getElementById('ocr-done').classList.add('hidden');
 
-      // Run OCR
-      let parsedData = { name: '', dosage: '', extra: '' };
+      // Update spinner message
+      const spinnerP = document.querySelector('#ocr-spinner p');
+      if (spinnerP) spinnerP.textContent = 'Reading medicine label with AI...';
+
+      // Run Claude Vision
+      let parsed = { name: '', dosage: '', extra: '', type: 'tablet', notes: '' };
       try {
-        // Load Tesseract dynamically
-        if (typeof Tesseract === 'undefined') {
-          await this.loadTesseract();
-        }
-        const rawText = await OCR.extractText(imageData);
-        parsedData = OCR.parseMedicineText(rawText);
+        parsed = await this._recogniseMedicineWithClaude(imageData);
       } catch (err) {
-        console.warn('OCR failed:', err);
+        console.warn('Claude Vision failed:', err);
+        this.toast('Could not read label — please fill in manually', 'error');
       }
 
       // Populate fields
-      document.getElementById('ocr-med-name').value = parsedData.name || '';
-      document.getElementById('ocr-dosage').value = parsedData.dosage || '';
-      document.getElementById('ocr-extra').value = parsedData.extra || '';
+      document.getElementById('ocr-med-name').value  = parsed.name    || '';
+      document.getElementById('ocr-dosage').value     = parsed.dosage  || '';
+      document.getElementById('ocr-extra').value      = parsed.extra   || '';
+      if (document.getElementById('ocr-notes')) {
+        document.getElementById('ocr-notes').value = parsed.notes || '';
+      }
 
       // Hide spinner, show done
       document.getElementById('ocr-spinner').classList.add('hidden');
       document.getElementById('ocr-done').classList.remove('hidden');
+
+      // Update done message
+      const doneP = document.querySelector('#ocr-done p');
+      if (doneP) {
+        doneP.textContent = parsed.name
+          ? 'Medicine detected! Please check and confirm:'
+          : 'Could not read label clearly. Please fill in manually.';
+      }
     };
     reader.readAsDataURL(file);
-
-    // Reset input
-    event.target.value = '';
   },
 
-  async loadTesseract() {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
+  async _recogniseMedicineWithClaude(imageDataUrl) {
+    // Compress image to reduce API payload (max ~800px, JPEG 80%)
+    const compressed = await this._compressImage(imageDataUrl, 800, 0.80);
+
+    // Strip the data:image/...;base64, prefix
+    const base64Data  = compressed.split(',')[1];
+    const mediaType   = compressed.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+
+    const prompt = `You are analysing a photo of a medicine packaging, strip, bottle, or prescription label.
+
+Extract the following information and respond ONLY with a valid JSON object — no explanation, no markdown, no extra text:
+
+{
+  "name": "Medicine name only (e.g. Paracetamol, Metformin, Amlodipine)",
+  "dosage": "Strength/dosage (e.g. 500mg, 5mg, 650mg, 10ml)",
+  "type": "One of: tablet, capsule, syrup, injection, drops, other",
+  "extra": "Manufacturer name or any other useful info visible",
+  "notes": "Any instructions visible (e.g. Take after meals, Store below 25°C)"
+}
+
+If a field is not clearly visible, use an empty string "".
+Do not guess or invent values not visible in the image.
+Respond with ONLY the JSON object.`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64Data
+              }
+            },
+            {
+              type: 'text',
+              text: prompt
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '{}';
+
+    // Parse JSON safely
+    try {
+      const clean = text.replace(/```json|```/g, '').trim();
+      return JSON.parse(clean);
+    } catch {
+      // If JSON parse fails, try to extract name/dosage with regex as fallback
+      const nameMatch  = text.match(/"name"\s*:\s*"([^"]+)"/);
+      const doseMatch  = text.match(/"dosage"\s*:\s*"([^"]+)"/);
+      return {
+        name:   nameMatch  ? nameMatch[1]  : '',
+        dosage: doseMatch  ? doseMatch[1]  : '',
+        type:   'tablet',
+        extra:  '',
+        notes:  ''
+      };
+    }
+  },
+
+  // Compress image using canvas — reduces file size before sending to API
+  _compressImage(dataUrl, maxPx, quality) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // Scale down if larger than maxPx
+        const scale = Math.min(1, maxPx / Math.max(width, height));
+        canvas.width  = Math.round(width  * scale);
+        canvas.height = Math.round(height * scale);
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
     });
   },
 
@@ -1347,7 +1441,7 @@ const App = {
     const actualTime = Util.now();
     const status = isLate ? 'taken-late' : 'taken';
 
-    // If there's an existing missed entry for this slot, UPDATE it instead of adding a duplicate
+    // Update existing missed entry or push new one
     const history = DB.get('history') || [];
     const existingIdx = history.findIndex(h =>
       h.medicineId === medicineId && h.date === date &&
@@ -1355,13 +1449,11 @@ const App = {
     );
 
     if (existingIdx !== -1) {
-      // Update the missed record to taken-late
-      history[existingIdx].status = 'taken-late';
+      history[existingIdx].status = status;
       history[existingIdx].actualTime = actualTime;
       history[existingIdx].timestamp = Date.now();
       DB.set('history', history);
     } else {
-      // No existing entry — push a fresh one
       DB.push('history', {
         id: Util.uid(),
         medicineId,
@@ -1375,7 +1467,16 @@ const App = {
       });
     }
 
-    this.toast(`✅ ${med.name} marked as taken!`, 'success');
+    // Decrement stock if tracking
+    if (med.stock !== null && med.stock !== undefined && med.stock > 0) {
+      DB.update('medicines', medicineId, (m) => ({
+        ...m,
+        stock: Math.max(0, m.stock - 1)
+      }));
+    }
+
+    // Show success animation
+    this.showSuccessAnimation(med.name);
 
     const settings = DB.get('settings') || {};
     if (settings.voice) Speech.say(`${med.name} has been marked as taken.`);
@@ -2309,6 +2410,101 @@ const App = {
     document.getElementById('modal-overlay').classList.add('hidden');
   },
 
+  // ── SUCCESS ANIMATION ─────────────────────
+  showSuccessAnimation(medicineName) {
+    const overlay = document.getElementById('success-overlay');
+    const label   = document.getElementById('success-label');
+    if (!overlay) return;
+
+    label.textContent = `${medicineName} — Taken!`;
+    overlay.classList.remove('hidden');
+
+    // Animate SVG ring and check
+    const ring  = overlay.querySelector('.success-ring');
+    const check = overlay.querySelector('.success-check');
+    if (ring)  { ring.style.animation  = 'none'; void ring.offsetWidth;  ring.style.animation  = 'drawRing 0.5s ease forwards'; }
+    if (check) { check.style.animation = 'none'; void check.offsetWidth; check.style.animation = 'drawCheck 0.4s ease 0.4s forwards'; }
+
+    // Launch confetti
+    this._launchConfetti();
+
+    // Play success beep
+    AlarmAudio.beepSuccess();
+
+    // Auto-hide after 1.8s
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      this._clearConfetti();
+    }, 1800);
+  },
+
+  _launchConfetti() {
+    const container = document.getElementById('confetti-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const colors = ['#483D8B','#6A5ACD','#9B8FD4','#3A7D44','#FFB300','#B8B0E8'];
+    for (let i = 0; i < 36; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.cssText = `
+        left: ${Math.random() * 100}%;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        width: ${6 + Math.random() * 8}px;
+        height: ${6 + Math.random() * 8}px;
+        border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+        animation-delay: ${Math.random() * 0.5}s;
+        animation-duration: ${1 + Math.random() * 0.8}s;
+      `;
+      container.appendChild(piece);
+    }
+  },
+
+  _clearConfetti() {
+    const container = document.getElementById('confetti-container');
+    if (container) container.innerHTML = '';
+  },
+
+  // ── PULL TO REFRESH ───────────────────────
+  setupPullToRefresh(screenId, onRefresh) {
+    const el = document.getElementById(screenId);
+    if (!el) return;
+
+    let startY = 0;
+    let pulling = false;
+    const indicator = document.getElementById('ptr-indicator');
+    const THRESHOLD = 70;
+
+    el.addEventListener('touchstart', (e) => {
+      if (el.scrollTop === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 20 && indicator) {
+        indicator.classList.remove('hidden');
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchend', (e) => {
+      if (!pulling) return;
+      pulling = false;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy >= THRESHOLD) {
+        if (indicator) indicator.classList.remove('hidden');
+        setTimeout(() => {
+          onRefresh();
+          if (indicator) indicator.classList.add('hidden');
+        }, 600);
+      } else {
+        if (indicator) indicator.classList.add('hidden');
+      }
+    }, { passive: true });
+  },
+
   // ── TOAST ─────────────────────────────────
   toast(msg, type = '') {
     const el = document.getElementById('toast');
@@ -2331,6 +2527,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Settings button in header
   document.getElementById('header-settings').addEventListener('click', () => App.navigate('settings'));
+
+  // Pull to refresh on Schedule and History
+  App.setupPullToRefresh('screen-schedule', () => App.loadSchedule());
+  App.setupPullToRefresh('screen-history',  () => App.loadHistory('daily'));
 
   // ── SOS LONG-PRESS (both buttons) ────────────
   const setupSosLongPress = (btn, labelDefault) => {
