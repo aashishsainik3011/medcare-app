@@ -508,7 +508,8 @@ const App = {
   capturedImageData: null,
   scheduleDate: new Date(),
   deferredInstallPrompt: null,
-  activeNotifPopup: null,
+  _navStack: [],          // navigation history stack
+  _onbSlide: 0,          // current onboarding slide index
 
   // ── INIT ─────────────────────────────────
   init() {
@@ -517,13 +518,18 @@ const App = {
     this.loadSchedule();
     Reminders.scheduleAll();
 
-    // Splash → App
+    // Splash → Onboarding or App
     setTimeout(() => {
       const splash = document.getElementById('splash-screen');
       splash.classList.add('fade-out');
       setTimeout(() => {
         splash.style.display = 'none';
-        document.getElementById('app').classList.remove('hidden');
+        const seen = DB.get('onboardingDone');
+        if (!seen) {
+          document.getElementById('onboarding').classList.remove('hidden');
+        } else {
+          document.getElementById('app').classList.remove('hidden');
+        }
       }, 500);
     }, 2000);
 
@@ -534,25 +540,111 @@ const App = {
       this.showInstallBanner();
     });
 
-    // Notification permission
-    setTimeout(() => Notify.requestPermission(), 3000);
-
     // Set today's date on add form
     const today = Util.today();
     const startEl = document.getElementById('med-start');
     if (startEl) startEl.value = today;
 
-    // Check every minute for reminders
-    setInterval(() => {
-      this.refreshDashboard();
-    }, 60000);
+    // Refresh dashboard every minute
+    setInterval(() => this.refreshDashboard(), 60000);
+  },
+
+  // ── ONBOARDING ────────────────────────────
+  _onbSlideCount: 5,
+
+  onbNext() {
+    const slides = document.querySelectorAll('.onb-slide');
+    const dots   = document.querySelectorAll('.onb-dot');
+    const nextBtn = document.getElementById('onb-next-btn');
+
+    // Validate name on slide 4
+    if (this._onbSlide === 3) {
+      const name = (document.getElementById('onb-name')?.value || '').trim();
+      if (name) {
+        // Save name to settings and profile
+        const s = DB.get('settings') || {};
+        s.name = name;
+        DB.set('settings', s);
+        const p = DB.get('profile') || {};
+        p.name = name;
+        DB.set('profile', p);
+      }
+    }
+
+    // Move to next slide
+    slides[this._onbSlide].classList.remove('active');
+    dots[this._onbSlide].classList.remove('active');
+    this._onbSlide++;
+
+    if (this._onbSlide >= this._onbSlideCount) {
+      this.finishOnboarding();
+      return;
+    }
+
+    slides[this._onbSlide].classList.add('active');
+    dots[this._onbSlide].classList.add('active');
+
+    // Change button label on last slide
+    if (this._onbSlide === this._onbSlideCount - 1) {
+      nextBtn.textContent = 'Get Started →';
+    } else {
+      nextBtn.textContent = 'Next →';
+    }
+  },
+
+  onbRequestNotif() {
+    const btn = document.querySelector('.onb-notif-btn');
+    const status = document.getElementById('onb-notif-status');
+    Notify.requestPermission().then(granted => {
+      if (granted) {
+        btn.textContent = '✓ Notifications Enabled';
+        btn.style.background = '#3A7D44';
+        if (status) status.textContent = 'Great! You will receive medicine reminders.';
+      } else {
+        if (status) status.textContent = 'You can enable this later in Settings.';
+      }
+    });
+  },
+
+  skipOnboarding() {
+    this.finishOnboarding();
+  },
+
+  finishOnboarding() {
+    DB.set('onboardingDone', true);
+    document.getElementById('onboarding').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    this.updateDashboard();
+    // Prompt to add first medicine if none exist
+    const medicines = DB.get('medicines') || [];
+    if (medicines.length === 0) {
+      setTimeout(() => {
+        this.showModal(`
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:56px;margin-bottom:16px">💊</div>
+            <div class="modal-title">Add Your First Medicine</div>
+            <p style="font-size:var(--font-size-base);color:var(--text-secondary);margin-bottom:24px;font-weight:600;line-height:1.5">
+              You're all set! Add your first medicine to start getting reminders.
+            </p>
+            <button class="modal-btn modal-btn--primary" onclick="App.closeModal();App.navigate('add-medicine')">
+              + Add Medicine Now
+            </button>
+            <button class="modal-btn modal-btn--secondary" style="margin-top:10px" onclick="App.closeModal()">
+              I'll do it later
+            </button>
+          </div>
+        `);
+      }, 400);
+    }
   },
 
   // ── NAVIGATION ────────────────────────────
   navigate(screen, data = null) {
-    // Track previous screen for smart back button
+    // Push current screen onto stack (don't push if same screen)
     if (this.currentScreen !== screen) {
-      this.previousScreen = this.currentScreen;
+      this._navStack.push(this.currentScreen);
+      // Keep stack max 10 deep
+      if (this._navStack.length > 10) this._navStack.shift();
     }
 
     // Hide all screens
@@ -587,6 +679,7 @@ const App = {
     const backBtn = document.getElementById('back-btn');
     if (screen === 'dashboard') {
       backBtn.classList.add('hidden');
+      this._navStack = []; // clear stack at home
     } else {
       backBtn.classList.remove('hidden');
     }
@@ -611,8 +704,42 @@ const App = {
   },
 
   goBack() {
-    const prev = this.previousScreen || 'dashboard';
-    this.navigate(prev);
+    // Pop the previous screen from stack
+    const prev = this._navStack.pop() || 'dashboard';
+    // Navigate without pushing to stack again
+    const el = document.getElementById('screen-' + prev);
+    if (!el) { this.navigate('dashboard'); return; }
+
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    this.currentScreen = prev;
+
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const navBtn = document.querySelector(`.nav-btn[data-screen="${prev}"]`);
+    if (navBtn) navBtn.classList.add('active');
+
+    const headerTitles = {
+      dashboard: 'MedCare', 'add-medicine': 'Add Medicine',
+      schedule: 'Medicine Schedule', 'medicine-detail': 'Medicine Details',
+      'my-medicines': 'My Medicines', history: 'History',
+      emergency: 'Emergency', profile: 'My Profile', settings: 'Settings'
+    };
+    document.getElementById('header-title').textContent = headerTitles[prev] || 'MedCare';
+
+    const backBtn = document.getElementById('back-btn');
+    if (prev === 'dashboard') {
+      backBtn.classList.add('hidden');
+      this._navStack = [];
+    } else {
+      backBtn.classList.remove('hidden');
+    }
+
+    if (prev === 'schedule') this.loadSchedule();
+    if (prev === 'history') this.loadHistory('daily');
+    if (prev === 'my-medicines') this.loadMyMedicines();
+    if (prev === 'dashboard') this.refreshDashboard();
+
+    el.scrollTop = 0;
   },
 
   // ── DASHBOARD STAT CARDS ──────────────────
@@ -1107,43 +1234,66 @@ const App = {
   buildMedCard(item, dateStr) {
     const { medicine: m, time, status } = item;
     const card = document.createElement('div');
-    card.className = `med-card ${status !== 'pending' ? status : ''}`;
     card.dataset.medId = m.id;
 
-    const statusBadge =
-      status === 'taken'      ? '<span class="med-status-badge badge-taken">✓ Taken</span>' :
-      status === 'taken-late' ? '<span class="med-status-badge badge-taken">✓ Taken</span>' :
-      status === 'missed'     ? '<span class="med-status-badge badge-missed">✕ Missed</span>' :
-      status === 'skipped'    ? '<span class="med-status-badge badge-skipped">⏩ Skipped</span>' :
-                                '<span class="med-status-badge badge-pending">Pending</span>';
+    const isToday   = dateStr === Util.today();
+    const nowMin    = isToday ? Util.timeToMinutes(Util.now()) : 0;
+    const schedMin  = Util.timeToMinutes(time);
+    const isPastTime = isToday && nowMin > schedMin;
+    const minsUntil  = !isPastTime && isToday ? schedMin - nowMin : null;
 
+    // Strong visual class per status
+    const isTaken = status === 'taken' || status === 'taken-late';
+    let cardClass = 'med-card';
+    if (isTaken)              cardClass += ' med-card--taken';
+    else if (status === 'missed')  cardClass += ' med-card--missed';
+    else if (status === 'skipped') cardClass += ' med-card--skipped';
+    else if (isPastTime)           cardClass += ' med-card--overdue';
+    else                           cardClass += ' med-card--pending';
+    card.className = cardClass;
+
+    // Status badge
+    const statusBadge = isTaken
+      ? '<span class="med-status-badge badge-taken">✓ Taken</span>'
+      : status === 'missed'
+      ? '<span class="med-status-badge badge-missed"><span class="missed-pulse"></span>✕ Missed</span>'
+      : status === 'skipped'
+      ? '<span class="med-status-badge badge-skipped">⏩ Skipped</span>'
+      : isPastTime
+      ? '<span class="med-status-badge badge-overdue">⚠ Overdue</span>'
+      : '<span class="med-status-badge badge-pending">Scheduled</span>';
+
+    // Countdown for upcoming medicines (within 2 hours)
+    let countdownHtml = '';
+    if (status === 'pending' && minsUntil !== null && minsUntil <= 120) {
+      const h = Math.floor(minsUntil / 60);
+      const min = minsUntil % 60;
+      const label = h > 0 ? `in ${h}h ${min}m` : `in ${min} min`;
+      countdownHtml = `<div class="med-countdown">⏱ ${label}</div>`;
+    }
+
+    // Photo / icon
     const photoHtml = m.photo
-      ? `<div class="med-photo"><img src="${m.photo}" alt="${m.name}" /></div>`
-      : `<div class="med-photo">${Util.typeEmoji(m.type)}</div>`;
+      ? `<div class="med-photo"><img src="${m.photo}" alt="${m.name}"/></div>`
+      : `<div class="med-photo med-photo--icon">${Util.typeEmoji(m.type)}</div>`;
 
-    const isToday = dateStr === Util.today();
-    const scheduledMin = Util.timeToMinutes(time);
-    const nowMin = isToday ? Util.timeToMinutes(Util.now()) : 0;
-    const isPastTime = isToday && nowMin > scheduledMin;
-
-    const canMarkTaken = status === 'pending' || status === 'missed';
-    const isLateAction = status === 'missed' || (status === 'pending' && isPastTime);
-
-    // Always show "Mark as Taken" — never say Late in the UI
+    // Mark as Taken button
+    const canMarkTaken = !isTaken && status !== 'skipped';
     const takenBtn = canMarkTaken
-      ? `<button class="mark-taken-btn">Mark as Taken</button>`
+      ? `<button class="mark-taken-btn${isPastTime || status === 'missed' ? ' mark-taken-btn--late' : ''}">Mark as Taken</button>`
       : '';
 
     card.innerHTML = `
       ${photoHtml}
       <div class="med-info">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div class="med-card-top-row">
           <div class="med-name">${m.name}</div>
-          <button class="card-delete-btn" data-medid="${m.id}" data-medname="${m.name}" aria-label="Delete" title="Delete medicine">Delete</button>
+          <button class="card-delete-btn" aria-label="Delete">🗑️</button>
         </div>
         <div class="med-dosage">${m.dosage}</div>
         <div class="med-time">${Util.fmtTime(time)}</div>
         ${m.notes ? `<div class="med-notes">${m.notes}</div>` : ''}
+        ${countdownHtml}
         ${statusBadge}
         ${takenBtn}
         <button class="view-detail-btn">View Details</button>
@@ -1154,15 +1304,13 @@ const App = {
     if (takenBtnEl) {
       takenBtnEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.markTaken(m.id, time, dateStr, isLateAction);
+        this.markTaken(m.id, time, dateStr, isPastTime || status === 'missed');
       });
     }
-
     card.querySelector('.card-delete-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       this.confirmDelete(m.id, m.name);
     });
-
     card.querySelector('.view-detail-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       this.openMedicineDetail(m.id);
