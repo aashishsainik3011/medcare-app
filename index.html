@@ -327,22 +327,20 @@
 
         <!-- PILL APPEARANCE -->
         <div class="form-group">
-          <label class="form-label">Pill Appearance
-            <span class="field-hint">Helps you identify medicine at a glance</span>
+          <label class="form-label">Pill Colour
+            <span class="field-hint">Shape is set automatically from Medicine Type above</span>
           </label>
 
           <!-- Live preview -->
           <div class="pill-preview-wrap">
-            <div class="pill-preview" id="pill-preview">
-            <!-- SVG rendered by JS -->
-          </div>
-            <div class="pill-preview-label" id="pill-preview-label">White Round Tablet</div>
+            <div class="pill-preview" id="pill-preview"><!-- SVG rendered by JS --></div>
+            <div class="pill-preview-label" id="pill-preview-label">White Tablet</div>
           </div>
 
-          <!-- Colour picker -->
-          <p class="pill-picker-label">Colour</p>
+          <!-- Colour picker only -->
+          <p class="pill-picker-label">Choose Colour</p>
           <div class="pill-color-grid" id="pill-color-grid">
-            <button class="pill-color-btn active" data-color="white"   style="background:#FFFFFF;border-color:#999"  onclick="App.setPillColor(this)" title="White"></button>
+            <button class="pill-color-btn active" data-color="white"   style="background:#FFFFFF;border-color:#999"   onclick="App.setPillColor(this)" title="White"></button>
             <button class="pill-color-btn"        data-color="yellow"  style="background:#FFD54F;border-color:#F9A825" onclick="App.setPillColor(this)" title="Yellow"></button>
             <button class="pill-color-btn"        data-color="orange"  style="background:#FF7043;border-color:#E64A19" onclick="App.setPillColor(this)" title="Orange"></button>
             <button class="pill-color-btn"        data-color="pink"    style="background:#F48FB1;border-color:#C2185B" onclick="App.setPillColor(this)" title="Pink"></button>
@@ -352,35 +350,6 @@
             <button class="pill-color-btn"        data-color="purple"  style="background:#CE93D8;border-color:#6A1B9A" onclick="App.setPillColor(this)" title="Purple"></button>
             <button class="pill-color-btn"        data-color="brown"   style="background:#A1887F;border-color:#4E342E" onclick="App.setPillColor(this)" title="Brown"></button>
             <button class="pill-color-btn"        data-color="grey"    style="background:#B0BEC5;border-color:#546E7A" onclick="App.setPillColor(this)" title="Grey"></button>
-          </div>
-
-          <!-- Shape picker -->
-          <p class="pill-picker-label">Shape</p>
-          <div class="pill-shape-grid" id="pill-shape-grid">
-            <button class="pill-shape-btn active" data-shape="round"   onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="#CCCCCC" stroke="#888" stroke-width="2"/></svg>
-              <span>Round</span>
-            </button>
-            <button class="pill-shape-btn" data-shape="oval" onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><ellipse cx="18" cy="18" rx="16" ry="10" fill="#CCCCCC" stroke="#888" stroke-width="2"/></svg>
-              <span>Oval</span>
-            </button>
-            <button class="pill-shape-btn" data-shape="capsule" onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><rect x="4" y="12" width="28" height="12" rx="6" fill="#CCCCCC" stroke="#888" stroke-width="2"/><rect x="4" y="12" width="14" height="12" rx="6" fill="#AAAAAA"/></svg>
-              <span>Capsule</span>
-            </button>
-            <button class="pill-shape-btn" data-shape="square" onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><rect x="6" y="6" width="24" height="24" rx="4" fill="#CCCCCC" stroke="#888" stroke-width="2"/></svg>
-              <span>Square</span>
-            </button>
-            <button class="pill-shape-btn" data-shape="diamond" onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><polygon points="18,4 32,18 18,32 4,18" fill="#CCCCCC" stroke="#888" stroke-width="2"/></svg>
-              <span>Diamond</span>
-            </button>
-            <button class="pill-shape-btn" data-shape="oblong" onclick="App.setPillShape(this)">
-              <svg width="36" height="36" viewBox="0 0 36 36"><rect x="2" y="14" width="32" height="8" rx="4" fill="#CCCCCC" stroke="#888" stroke-width="2"/></svg>
-              <span>Oblong</span>
-            </button>
           </div>
         </div>
         <div class="form-group">

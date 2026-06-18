@@ -78,6 +78,16 @@ const Util = {
     square: 'Square', diamond: 'Diamond', oblong: 'Oblong'
   },
 
+  // Auto-derive shape from medicine type — no user choice needed
+  typeToShape: {
+    tablet:    'round',
+    capsule:   'capsule',
+    syrup:     'oblong',
+    injection: 'oblong',
+    drops:     'oval',
+    other:     'square'
+  },
+
   // Renders a coloured pill SVG for a medicine object
   // size: pixel size of the SVG (default 48)
   renderPillSvg(medicine, size = 48) {
@@ -1052,13 +1062,6 @@ const App = {
     this.updatePillPreview();
   },
 
-  setPillShape(btn) {
-    document.querySelectorAll('.pill-shape-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    this.currentPillShape = btn.dataset.shape;
-    this.updatePillPreview();
-  },
-
   updatePillPreview() {
     const container = document.getElementById('pill-preview');
     const label     = document.getElementById('pill-preview-label');
@@ -1085,6 +1088,9 @@ const App = {
     document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     this.currentMedicineType = btn.dataset.type;
+    // Auto-set shape based on type
+    this.currentPillShape = Util.typeToShape[this.currentMedicineType] || 'round';
+    this.updatePillPreview();
   },
 
   addTimeSlot() {
@@ -1143,7 +1149,7 @@ const App = {
       dosage: dosage || '',
       type: this.currentMedicineType,
       pillColor: this.currentPillColor,
-      pillShape: this.currentPillShape,
+      pillShape: Util.typeToShape[this.currentMedicineType] || 'round',
       frequency,
       weekdays,
       reminders: this.collectReminders('#manual-entry'),
@@ -1666,9 +1672,8 @@ Respond with ONLY the JSON object.`;
     const med = medicines.find(m => m.id === id);
     if (!med) { this.toast('Medicine not found', 'error'); return; }
 
-    // Initialise edit state from current medicine values
+    // Initialise edit colour from current medicine
     this._editCurrentColor = med.pillColor || 'white';
-    this._editCurrentShape = med.pillShape || 'round';
 
     // Build reminder rows HTML
     const reminderRowsHtml = (med.reminders || [{ slot: 'morning', time: '08:00' }]).map((r, i) => `
@@ -1740,28 +1745,21 @@ Respond with ONLY the JSON object.`;
         <input type="date" id="edit-end" class="form-input" value="${med.endDate || ''}" />
       </div>
       <div class="form-group">
-        <label class="form-label">Pill Appearance</label>
+        <label class="form-label">Pill Colour
+          <span class="field-hint">Shape is set automatically from Medicine Type</span>
+        </label>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);">
           <div id="edit-pill-preview">${Util.renderPillSvg(med, 48)}</div>
           <span id="edit-pill-label" style="font-size:var(--font-size-sm);font-weight:700;color:var(--text-secondary);">
-            ${Util.pillColors[med.pillColor]?.text || 'White'} ${Util.pillShapeNames[med.pillShape] || 'Round'}
+            ${Util.pillColors[med.pillColor]?.text || 'White'} ${Util.pillShapeNames[Util.typeToShape[med.type] || 'round'] || 'Round'}
           </span>
         </div>
-        <p class="pill-picker-label">Colour</p>
+        <p class="pill-picker-label">Choose Colour</p>
         <div class="pill-color-grid edit-color-grid">
           ${Object.entries(Util.pillColors).map(([key, val]) =>
             `<button class="pill-color-btn ${(med.pillColor || 'white') === key ? 'active' : ''}"
               data-color="${key}" style="background:${val.fill};border-color:${val.stroke}"
               onclick="App._editSetColor(this)" title="${val.text}"></button>`
-          ).join('')}
-        </div>
-        <p class="pill-picker-label">Shape</p>
-        <div class="pill-shape-grid edit-shape-grid">
-          ${Object.entries(Util.pillShapeNames).map(([key, label]) =>
-            `<button class="pill-shape-btn ${(med.pillShape || 'round') === key ? 'active' : ''}"
-              data-shape="${key}" onclick="App._editSetShape(this)">
-              <span>${label}</span>
-            </button>`
           ).join('')}
         </div>
       </div>
@@ -1774,9 +1772,8 @@ Respond with ONLY the JSON object.`;
     `);
   },
 
-  // Edit modal pill colour/shape helpers
+  // Edit modal colour helper
   _editCurrentColor: 'white',
-  _editCurrentShape: 'round',
 
   _editSetColor(btn) {
     document.querySelectorAll('.edit-color-grid .pill-color-btn').forEach(b => b.classList.remove('active'));
@@ -1785,21 +1782,16 @@ Respond with ONLY the JSON object.`;
     this._updateEditPillPreview();
   },
 
-  _editSetShape(btn) {
-    document.querySelectorAll('.edit-shape-grid .pill-shape-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    this._editCurrentShape = btn.dataset.shape;
-    this._updateEditPillPreview();
-  },
-
   _updateEditPillPreview() {
     const preview = document.getElementById('edit-pill-preview');
     const label   = document.getElementById('edit-pill-label');
     if (!preview) return;
-    const mockMed = { pillColor: this._editCurrentColor, pillShape: this._editCurrentShape };
+    const editType = document.getElementById('edit-type')?.value || 'tablet';
+    const shape = Util.typeToShape[editType] || 'round';
+    const mockMed = { pillColor: this._editCurrentColor, pillShape: shape };
     preview.innerHTML = Util.renderPillSvg(mockMed, 48);
     if (label) {
-      label.textContent = `${Util.pillColors[this._editCurrentColor]?.text || ''} ${Util.pillShapeNames[this._editCurrentShape] || ''}`;
+      label.textContent = `${Util.pillColors[this._editCurrentColor]?.text || ''} ${Util.pillShapeNames[shape] || ''}`;
     }
   },
 
@@ -1857,7 +1849,7 @@ Respond with ONLY the JSON object.`;
       dosage:    (document.getElementById('edit-dosage')?.value || '').trim(),
       type:      document.getElementById('edit-type')?.value || med.type,
       pillColor: this._editCurrentColor || med.pillColor || 'white',
-      pillShape: this._editCurrentShape || med.pillShape || 'round',
+      pillShape: Util.typeToShape[document.getElementById('edit-type')?.value || med.type] || 'round',
       frequency,
       weekdays,
       reminders: reminders.length ? reminders : med.reminders,
