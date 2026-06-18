@@ -708,6 +708,7 @@ const App = {
     if (screen === 'dashboard') this.refreshDashboard();
     if (screen === 'my-medicines') this.loadMyMedicines();
     if (screen === 'profile') this.loadProfile();
+    if (screen === 'add-medicine') setTimeout(() => this.updatePillPreview(), 50);
     if (screen === 'medicine-detail') {
       if (data) {
         this.showMedicineDetail(data);
@@ -1059,14 +1060,13 @@ const App = {
   },
 
   updatePillPreview() {
-    const svg = document.getElementById('pill-preview-svg');
-    const label = document.getElementById('pill-preview-label');
-    if (!svg) return;
+    const container = document.getElementById('pill-preview');
+    const label     = document.getElementById('pill-preview-label');
+    if (!container) return;
 
     const mockMed = { pillColor: this.currentPillColor, pillShape: this.currentPillShape };
-    svg.outerHTML; // force re-render
-    const container = document.getElementById('pill-preview');
-    if (container) container.innerHTML = Util.renderPillSvg(mockMed, 64);
+    // Replace only the SVG inside the container
+    container.innerHTML = Util.renderPillSvg(mockMed, 64);
 
     const colorName = Util.pillColors[this.currentPillColor]?.text || '';
     const shapeName = Util.pillShapeNames[this.currentPillShape] || '';
