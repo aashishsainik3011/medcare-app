@@ -82,9 +82,9 @@ const Util = {
   typeToShape: {
     tablet:    'round',
     capsule:   'capsule',
-    syrup:     'oblong',
-    injection: 'oblong',
-    drops:     'oval',
+    syrup:     'syrup',
+    injection: 'injection',
+    drops:     'drops',
     other:     'square'
   },
 
@@ -112,24 +112,42 @@ const Util = {
     };
 
     const shapes = {
+      // Tablet — round with score line
       round: `<circle cx="${half}" cy="${half}" r="${half * 0.78}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
               <line x1="${half}" y1="${half * 0.22}" x2="${half}" y2="${half * 1.78}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
 
-      oval: `<ellipse cx="${half}" cy="${half}" rx="${half * 0.9}" ry="${half * 0.58}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
-             <line x1="${half}" y1="${half * 0.42}" x2="${half}" y2="${half * 1.58}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
-
+      // Capsule — two-tone horizontal pill
       capsule: `<rect x="${size * 0.08}" y="${size * 0.3}" width="${size * 0.84}" height="${size * 0.4}" rx="${size * 0.2}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
                 <rect x="${size * 0.08}" y="${size * 0.3}" width="${size * 0.42}" height="${size * 0.4}" rx="${size * 0.2}" fill="${darken(f)}"/>
                 <line x1="${half}" y1="${size * 0.3}" x2="${half}" y2="${size * 0.7}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.5"/>`,
 
+      // Syrup — bottle silhouette
+      syrup: `<rect x="${size*0.36}" y="${size*0.05}" width="${size*0.14}" height="${size*0.15}" rx="${size*0.04}" fill="${f}" stroke="${s}" stroke-width="${sw*0.8}"/>
+              <rect x="${size*0.2}" y="${size*0.18}" width="${size*0.46}" height="${size*0.68}" rx="${size*0.1}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+              <rect x="${size*0.2}" y="${size*0.18}" width="${size*0.46}" height="${size*0.2}" rx="${size*0.08}" fill="${darken(f)}" opacity="0.6"/>
+              <line x1="${size*0.3}" y1="${size*0.55}" x2="${size*0.56}" y2="${size*0.55}" stroke="white" stroke-width="${sw*0.8}" opacity="0.5" stroke-linecap="round"/>
+              <line x1="${size*0.3}" y1="${size*0.65}" x2="${size*0.56}" y2="${size*0.65}" stroke="white" stroke-width="${sw*0.8}" opacity="0.35" stroke-linecap="round"/>`,
+
+      // Injection — syringe silhouette
+      injection: `<rect x="${size*0.18}" y="${size*0.44}" width="${size*0.52}" height="${size*0.12}" rx="${size*0.06}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+                  <rect x="${size*0.22}" y="${size*0.44}" width="${size*0.26}" height="${size*0.12}" rx="${size*0.04}" fill="${darken(f)}" opacity="0.5"/>
+                  <rect x="${size*0.7}" y="${size*0.47}" width="${size*0.14}" height="${size*0.06}" rx="${size*0.03}" fill="${s}"/>
+                  <polygon points="${size*0.14},${size*0.44} ${size*0.18},${size*0.5} ${size*0.14},${size*0.56}" fill="${s}"/>
+                  <line x1="${size*0.3}" y1="${size*0.37}" x2="${size*0.3}" y2="${size*0.44}" stroke="${s}" stroke-width="${sw*0.9}" stroke-linecap="round"/>
+                  <line x1="${size*0.42}" y1="${size*0.37}" x2="${size*0.42}" y2="${size*0.44}" stroke="${s}" stroke-width="${sw*0.9}" stroke-linecap="round"/>`,
+
+      // Drops — teardrop shape
+      drops: `<path d="M${half} ${size*0.08} C${size*0.78} ${size*0.38} ${size*0.8} ${size*0.86} ${half} ${size*0.9} C${size*0.2} ${size*0.86} ${size*0.22} ${size*0.38} ${half} ${size*0.08}Z" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+              <ellipse cx="${size*0.38}" cy="${size*0.42}" rx="${size*0.07}" ry="${size*0.11}" fill="white" opacity="0.4" transform="rotate(-20 ${size*0.38} ${size*0.42})"/>`,
+
+      // Other — box/package
       square: `<rect x="${size * 0.12}" y="${size * 0.12}" width="${size * 0.76}" height="${size * 0.76}" rx="${size * 0.12}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
                <line x1="${half}" y1="${size * 0.12}" x2="${half}" y2="${size * 0.88}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
 
-      diamond: `<polygon points="${half},${size*0.1} ${size*0.9},${half} ${half},${size*0.9} ${size*0.1},${half}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
-                <line x1="${half}" y1="${size*0.1}" x2="${half}" y2="${size*0.9}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
-
-      oblong: `<rect x="${size * 0.04}" y="${size * 0.32}" width="${size * 0.92}" height="${size * 0.36}" rx="${size * 0.18}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
-               <line x1="${half}" y1="${size*0.32}" x2="${half}" y2="${size*0.68}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`
+      // Legacy kept for backward compat
+      oval:    `<ellipse cx="${half}" cy="${half}" rx="${half * 0.9}" ry="${half * 0.58}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`,
+      diamond: `<polygon points="${half},${size*0.1} ${size*0.9},${half} ${half},${size*0.9} ${size*0.1},${half}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`,
+      oblong:  `<rect x="${size * 0.04}" y="${size * 0.32}" width="${size * 0.92}" height="${size * 0.36}" rx="${size * 0.18}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`
     };
 
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${shapes[shape] || shapes.round}</svg>`;
