@@ -59,6 +59,71 @@ const Util = {
     const map = { tablet: '💊', capsule: '💉', syrup: '🧴', injection: '💉', drops: '💧', other: '📦' };
     return map[type] || '💊';
   },
+
+  pillColors: {
+    white:  { fill: '#FFFFFF', stroke: '#BBBBBB', text: 'White' },
+    yellow: { fill: '#FFD54F', stroke: '#F9A825', text: 'Yellow' },
+    orange: { fill: '#FF7043', stroke: '#E64A19', text: 'Orange' },
+    pink:   { fill: '#F48FB1', stroke: '#C2185B', text: 'Pink' },
+    blue:   { fill: '#64B5F6', stroke: '#1565C0', text: 'Blue' },
+    green:  { fill: '#81C784', stroke: '#2E7D32', text: 'Green' },
+    red:    { fill: '#EF5350', stroke: '#B71C1C', text: 'Red' },
+    purple: { fill: '#CE93D8', stroke: '#6A1B9A', text: 'Purple' },
+    brown:  { fill: '#A1887F', stroke: '#4E342E', text: 'Brown' },
+    grey:   { fill: '#B0BEC5', stroke: '#546E7A', text: 'Grey' }
+  },
+
+  pillShapeNames: {
+    round: 'Round', oval: 'Oval', capsule: 'Capsule',
+    square: 'Square', diamond: 'Diamond', oblong: 'Oblong'
+  },
+
+  // Renders a coloured pill SVG for a medicine object
+  // size: pixel size of the SVG (default 48)
+  renderPillSvg(medicine, size = 48) {
+    const color  = medicine.pillColor  || 'white';
+    const shape  = medicine.pillShape  || 'round';
+    const c = this.pillColors[color] || this.pillColors.white;
+    const f = c.fill;
+    const s = c.stroke;
+    const sw = Math.max(1.5, size * 0.04);
+    const half = size / 2;
+
+    // For capsule: draw two halves in fill + darker shade
+    const darken = (hex) => {
+      // Simple darkening — remove two hex chars worth of brightness
+      try {
+        const n = parseInt(hex.slice(1), 16);
+        const r = Math.max(0, (n >> 16) - 40);
+        const g = Math.max(0, ((n >> 8) & 0xFF) - 40);
+        const b = Math.max(0, (n & 0xFF) - 40);
+        return `rgb(${r},${g},${b})`;
+      } catch { return f; }
+    };
+
+    const shapes = {
+      round: `<circle cx="${half}" cy="${half}" r="${half * 0.78}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+              <line x1="${half}" y1="${half * 0.22}" x2="${half}" y2="${half * 1.78}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
+
+      oval: `<ellipse cx="${half}" cy="${half}" rx="${half * 0.9}" ry="${half * 0.58}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+             <line x1="${half}" y1="${half * 0.42}" x2="${half}" y2="${half * 1.58}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
+
+      capsule: `<rect x="${size * 0.08}" y="${size * 0.3}" width="${size * 0.84}" height="${size * 0.4}" rx="${size * 0.2}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+                <rect x="${size * 0.08}" y="${size * 0.3}" width="${size * 0.42}" height="${size * 0.4}" rx="${size * 0.2}" fill="${darken(f)}"/>
+                <line x1="${half}" y1="${size * 0.3}" x2="${half}" y2="${size * 0.7}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.5"/>`,
+
+      square: `<rect x="${size * 0.12}" y="${size * 0.12}" width="${size * 0.76}" height="${size * 0.76}" rx="${size * 0.12}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+               <line x1="${half}" y1="${size * 0.12}" x2="${half}" y2="${size * 0.88}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
+
+      diamond: `<polygon points="${half},${size*0.1} ${size*0.9},${half} ${half},${size*0.9} ${size*0.1},${half}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+                <line x1="${half}" y1="${size*0.1}" x2="${half}" y2="${size*0.9}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`,
+
+      oblong: `<rect x="${size * 0.04}" y="${size * 0.32}" width="${size * 0.92}" height="${size * 0.36}" rx="${size * 0.18}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>
+               <line x1="${half}" y1="${size*0.32}" x2="${half}" y2="${size*0.68}" stroke="${s}" stroke-width="${sw * 0.6}" opacity="0.4"/>`
+    };
+
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${shapes[shape] || shapes.round}</svg>`;
+  },
   greeting: () => {
     const h = new Date().getHours();
     if (h < 12) return 'Good Morning!';
@@ -455,11 +520,13 @@ const Speech = {
 const App = {
   currentScreen: 'dashboard',
   currentMedicineType: 'tablet',
+  currentPillColor: 'white',
+  currentPillShape: 'round',
   capturedImageData: null,
   scheduleDate: new Date(),
   deferredInstallPrompt: null,
-  _navStack: [],          // navigation history stack
-  _onbSlide: 0,          // current onboarding slide index
+  _navStack: [],
+  _onbSlide: 0,
 
   // ── INIT ─────────────────────────────────
   init() {
@@ -977,6 +1044,35 @@ const App = {
     return Array.from(chips).map(c => parseInt(c.dataset.day));
   },
 
+  setPillColor(btn) {
+    document.querySelectorAll('.pill-color-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this.currentPillColor = btn.dataset.color;
+    this.updatePillPreview();
+  },
+
+  setPillShape(btn) {
+    document.querySelectorAll('.pill-shape-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this.currentPillShape = btn.dataset.shape;
+    this.updatePillPreview();
+  },
+
+  updatePillPreview() {
+    const svg = document.getElementById('pill-preview-svg');
+    const label = document.getElementById('pill-preview-label');
+    if (!svg) return;
+
+    const mockMed = { pillColor: this.currentPillColor, pillShape: this.currentPillShape };
+    svg.outerHTML; // force re-render
+    const container = document.getElementById('pill-preview');
+    if (container) container.innerHTML = Util.renderPillSvg(mockMed, 64);
+
+    const colorName = Util.pillColors[this.currentPillColor]?.text || '';
+    const shapeName = Util.pillShapeNames[this.currentPillShape] || '';
+    if (label) label.textContent = `${colorName} ${shapeName}`;
+  },
+
   // ── ADD MEDICINE ──────────────────────────
   switchTab(tab) {
     document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
@@ -1046,6 +1142,8 @@ const App = {
       name,
       dosage: dosage || '',
       type: this.currentMedicineType,
+      pillColor: this.currentPillColor,
+      pillShape: this.currentPillShape,
       frequency,
       weekdays,
       reminders: this.collectReminders('#manual-entry'),
@@ -1103,6 +1201,11 @@ const App = {
     document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.type-btn[data-type="tablet"]').classList.add('active');
     this.currentMedicineType = 'tablet';
+    this.currentPillColor = 'white';
+    this.currentPillShape = 'round';
+    document.querySelectorAll('.pill-color-btn').forEach(b => b.classList.toggle('active', b.dataset.color === 'white'));
+    document.querySelectorAll('.pill-shape-btn').forEach(b => b.classList.toggle('active', b.dataset.shape === 'round'));
+    this.updatePillPreview();
   },
 
   // ── CAMERA / OCR via Claude Vision API ────
@@ -1366,10 +1469,10 @@ Respond with ONLY the JSON object.`;
       countdownHtml = `<div class="med-countdown">⏱ ${label}</div>`;
     }
 
-    // Photo / icon
+    // Photo / coloured pill icon
     const photoHtml = m.photo
       ? `<div class="med-photo"><img src="${m.photo}" alt="${m.name}"/></div>`
-      : `<div class="med-photo med-photo--icon">${Util.typeEmoji(m.type)}</div>`;
+      : `<div class="med-photo med-photo--pill">${Util.renderPillSvg(m, 48)}</div>`;
 
     // Mark as Taken button
     const canMarkTaken = !isTaken && status !== 'skipped';
@@ -1494,7 +1597,7 @@ Respond with ONLY the JSON object.`;
 
     const photoHtml = med.photo
       ? `<div class="detail-photo"><img src="${med.photo}" alt="${med.name}" /></div>`
-      : `<div class="detail-photo">${Util.typeEmoji(med.type)}</div>`;
+      : `<div class="detail-photo" style="background:var(--bg);">${Util.renderPillSvg(med, 120)}</div>`;
 
     const reminderList = (med.reminders || [])
       .map(r => `<span style="background:var(--primary-light);color:white;padding:4px 12px;border-radius:20px;font-size:14px;font-weight:700;">${Util.fmtTime(r.time)}</span>`)
@@ -1507,8 +1610,11 @@ Respond with ONLY the JSON object.`;
 
       <div class="detail-info-grid">
         <div class="detail-info-item">
-          <div class="detail-info-label">Type</div>
-          <div class="detail-info-value">${Util.typeEmoji(med.type)} ${med.type}</div>
+          <div class="detail-info-label">Appearance</div>
+          <div class="detail-info-value" style="display:flex;align-items:center;gap:8px;">
+            ${Util.renderPillSvg(med, 28)}
+            <span>${Util.pillColors[med.pillColor]?.text || 'White'} ${Util.pillShapeNames[med.pillShape] || 'Round'}</span>
+          </div>
         </div>
         <div class="detail-info-item">
           <div class="detail-info-label">Frequency</div>
@@ -1559,6 +1665,10 @@ Respond with ONLY the JSON object.`;
     const medicines = DB.get('medicines') || [];
     const med = medicines.find(m => m.id === id);
     if (!med) { this.toast('Medicine not found', 'error'); return; }
+
+    // Initialise edit state from current medicine values
+    this._editCurrentColor = med.pillColor || 'white';
+    this._editCurrentShape = med.pillShape || 'round';
 
     // Build reminder rows HTML
     const reminderRowsHtml = (med.reminders || [{ slot: 'morning', time: '08:00' }]).map((r, i) => `
@@ -1630,13 +1740,67 @@ Respond with ONLY the JSON object.`;
         <input type="date" id="edit-end" class="form-input" value="${med.endDate || ''}" />
       </div>
       <div class="form-group">
+        <label class="form-label">Pill Appearance</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);">
+          <div id="edit-pill-preview">${Util.renderPillSvg(med, 48)}</div>
+          <span id="edit-pill-label" style="font-size:var(--font-size-sm);font-weight:700;color:var(--text-secondary);">
+            ${Util.pillColors[med.pillColor]?.text || 'White'} ${Util.pillShapeNames[med.pillShape] || 'Round'}
+          </span>
+        </div>
+        <p class="pill-picker-label">Colour</p>
+        <div class="pill-color-grid edit-color-grid">
+          ${Object.entries(Util.pillColors).map(([key, val]) =>
+            `<button class="pill-color-btn ${(med.pillColor || 'white') === key ? 'active' : ''}"
+              data-color="${key}" style="background:${val.fill};border-color:${val.stroke}"
+              onclick="App._editSetColor(this)" title="${val.text}"></button>`
+          ).join('')}
+        </div>
+        <p class="pill-picker-label">Shape</p>
+        <div class="pill-shape-grid edit-shape-grid">
+          ${Object.entries(Util.pillShapeNames).map(([key, label]) =>
+            `<button class="pill-shape-btn ${(med.pillShape || 'round') === key ? 'active' : ''}"
+              data-shape="${key}" onclick="App._editSetShape(this)">
+              <span>${label}</span>
+            </button>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="form-group">
         <label class="form-label">Notes</label>
         <textarea id="edit-notes" class="form-input form-textarea">${med.notes || ''}</textarea>
       </div>
-
       <button class="modal-btn modal-btn--primary" onclick="App._saveEditedMedicine('${id}')">Save Changes</button>
       <button class="modal-btn modal-btn--secondary" style="margin-top:10px" onclick="App.closeModal()">Cancel</button>
     `);
+  },
+
+  // Edit modal pill colour/shape helpers
+  _editCurrentColor: 'white',
+  _editCurrentShape: 'round',
+
+  _editSetColor(btn) {
+    document.querySelectorAll('.edit-color-grid .pill-color-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this._editCurrentColor = btn.dataset.color;
+    this._updateEditPillPreview();
+  },
+
+  _editSetShape(btn) {
+    document.querySelectorAll('.edit-shape-grid .pill-shape-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this._editCurrentShape = btn.dataset.shape;
+    this._updateEditPillPreview();
+  },
+
+  _updateEditPillPreview() {
+    const preview = document.getElementById('edit-pill-preview');
+    const label   = document.getElementById('edit-pill-label');
+    if (!preview) return;
+    const mockMed = { pillColor: this._editCurrentColor, pillShape: this._editCurrentShape };
+    preview.innerHTML = Util.renderPillSvg(mockMed, 48);
+    if (label) {
+      label.textContent = `${Util.pillColors[this._editCurrentColor]?.text || ''} ${Util.pillShapeNames[this._editCurrentShape] || ''}`;
+    }
   },
 
   _addEditReminderRow() {
@@ -1692,6 +1856,8 @@ Respond with ONLY the JSON object.`;
       name,
       dosage:    (document.getElementById('edit-dosage')?.value || '').trim(),
       type:      document.getElementById('edit-type')?.value || med.type,
+      pillColor: this._editCurrentColor || med.pillColor || 'white',
+      pillShape: this._editCurrentShape || med.pillShape || 'round',
       frequency,
       weekdays,
       reminders: reminders.length ? reminders : med.reminders,
@@ -1753,7 +1919,7 @@ Respond with ONLY the JSON object.`;
       const reminderTimes = (med.reminders || []).map(r => Util.fmtTime(r.time)).join(', ');
       const photoHtml = med.photo
         ? `<img src="${med.photo}" alt="${med.name}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid var(--border);flex-shrink:0;" />`
-        : `<div style="width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">${Util.typeEmoji(med.type)}</div>`;
+        : `<div style="width:52px;height:52px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--border);">${Util.renderPillSvg(med, 44)}</div>`;
 
       card.innerHTML = `
         <div style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border-radius:var(--radius);border:2px solid var(--border);margin-bottom:12px;box-shadow:var(--shadow-sm);">
@@ -2294,6 +2460,13 @@ Respond with ONLY the JSON object.`;
     document.getElementById('alarm-med-name').textContent = medicine.name;
     document.getElementById('alarm-dosage').textContent = medicine.dosage || '';
     document.getElementById('alarm-time-val').textContent = Util.fmtTime(time);
+
+    // Show coloured pill icon on alarm
+    const alarmEmoji = document.querySelector('.alarm-emoji');
+    if (alarmEmoji) {
+      alarmEmoji.innerHTML = Util.renderPillSvg(medicine, 72);
+      alarmEmoji.style.fontSize = '0'; // hide fallback emoji text
+    }
 
     // Show overlay
     const overlay = document.getElementById('alarm-overlay');

@@ -2044,3 +2044,112 @@ body.dark-mode .med-card--overdue { background: #2a1500; }
   margin: 10px 0 16px;
   letter-spacing: 0.3px;
 }
+
+/* ============================================
+   PILL VISUAL CUSTOMISATION
+============================================ */
+.pill-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.pill-preview {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pill-preview-label {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text);
+}
+.pill-picker-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+/* Colour circles */
+.pill-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.pill-color-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+.pill-color-btn.active {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 3px var(--primary);
+}
+.pill-color-btn.active::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(0,0,0,0.5);
+}
+.pill-color-btn:active { transform: scale(0.95); }
+
+/* Shape buttons */
+.pill-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pill-shape-btn {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+.pill-shape-btn.active {
+  border-color: var(--primary);
+  background: #EEEAF8;
+  color: var(--primary);
+}
+body.dark-mode .pill-shape-btn.active { background: #1a1830; }
+.pill-shape-btn:active { transform: scale(0.96); }
+.pill-shape-btn svg { display: block; }
+
+/* Med photo — pill icon variant */
+.med-photo--pill {
+  background: var(--bg) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
