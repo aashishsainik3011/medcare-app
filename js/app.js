@@ -298,6 +298,7 @@ const Reminders = {
   _firedToday: {},   // key: "medId_time_date" → true, prevents double-firing
   _snoozeUntil: {},  // key: "medId_time" → timestamp when snooze expires
   _activeAlarm: null,// currently showing alarm data
+  _dailySummaryFiredDate: null, // date string when daily summary was last sent
 
   // Call once on app start
   startPolling() {
@@ -318,9 +319,13 @@ const Reminders = {
     // medicine was not actually scheduled (bug from earlier code versions).
     this._cleanupBadMissedEntries();
 
+    // Restore daily summary fired date
+    this._dailySummaryFiredDate = DB.get('dailySummaryFiredDate') || null;
+
     // Poll immediately, then every 30 seconds
     this._poll();
-    this._pollInterval = setInterval(() => this._poll(), 30_000);
+    this._checkDailySummary();
+    this._pollInterval = setInterval(() => { this._poll(); this._checkDailySummary(); }, 30_000);
 
     // Also poll when tab becomes visible again (user returns to app)
     document.addEventListener('visibilitychange', () => {
@@ -345,6 +350,58 @@ const Reminders = {
       DB.set('history', cleaned);
       console.log(`MedCare: cleaned ${before - cleaned.length} invalid missed entries`);
     }
+  },
+
+  // ── DAILY SUMMARY at 21:00 ────────────────
+  _checkDailySummary() {
+    const s = DB.get('settings') || {};
+    if (s.summary === false) return; // toggle is OFF
+
+    const now = new Date();
+    const today = Util.today();
+
+    // Fire only once per day, at or after 21:00
+    if (now.getHours() < 21) return;
+    if (this._dailySummaryFiredDate === today) return;
+
+    // Mark as fired for today
+    this._dailySummaryFiredDate = today;
+    DB.set('dailySummaryFiredDate', today);
+
+    // Build summary from today's history
+    const medicines = DB.get('medicines') || [];
+    const history = DB.get('history') || [];
+    const todayHistory = history.filter(h => h.date === today);
+
+    let taken = 0, missed = 0, skipped = 0;
+    todayHistory.forEach(h => {
+      if (h.status === 'taken' || h.status === 'taken-late') taken++;
+      else if (h.status === 'missed') missed++;
+      else if (h.status === 'skipped') skipped++;
+    });
+
+    // Count total doses scheduled for today
+    let totalDoses = 0;
+    medicines.forEach(med => {
+      if (!med.active) return;
+      if (!Util.isScheduledOnDate(med, today)) return;
+      totalDoses += (med.reminders || []).length;
+    });
+
+    let body;
+    if (totalDoses === 0) {
+      body = 'No medicines scheduled today.';
+    } else if (missed === 0 && skipped === 0) {
+      body = `Great job! ✅ All ${taken} dose${taken !== 1 ? 's' : ''} taken today.`;
+    } else {
+      const parts = [];
+      if (taken > 0)   parts.push(`✅ ${taken} taken`);
+      if (missed > 0)  parts.push(`❌ ${missed} missed`);
+      if (skipped > 0) parts.push(`⏭️ ${skipped} skipped`);
+      body = parts.join(' · ') + ` (of ${totalDoses} scheduled)`;
+    }
+
+    Notify.send('📋 MedCare Daily Summary', body, 'daily-summary');
   },
 
   _poll() {
