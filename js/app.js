@@ -1244,10 +1244,26 @@ const App = {
   },
 
   // ── CAMERA / OCR via Claude Vision API ────
+  async scanMedicineLabel(imageDataUrl) {
+    const base64Data = imageDataUrl.split(',')[1];
+    const mediaType  = imageDataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
 
+    const prompt = `You are a medicine label reader. Look at this medicine packaging or label image and extract:
+1. Medicine name (brand name or generic)
+2. Dosage/strength (e.g. 500mg, 10mg)
+3. Type (tablet, capsule, syrup, injection, drops, inhaler, cream, patch, or other)
+4. Any extra info (e.g. "Extended Release", "Chewable")
+5. Short usage notes if visible
 
+Return ONLY valid JSON in this exact format, no extra text:
+{"name":"","dosage":"","type":"tablet","extra":"","notes":""}`;
 
-
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 300,
@@ -2601,7 +2617,34 @@ const App = {
 // BOOT
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-  App.init();
+  // Hard fallback: if splash is still showing after 5s, force it away no matter what
+  setTimeout(() => {
+    const splash = document.getElementById('splash-screen');
+    if (splash && splash.style.display !== 'none') {
+      splash.style.display = 'none';
+      const seen = DB.get('onboardingDone');
+      if (!seen) {
+        document.getElementById('onboarding').classList.remove('hidden');
+      } else {
+        document.getElementById('app').classList.remove('hidden');
+      }
+    }
+  }, 5000);
+
+  try {
+    App.init();
+  } catch (err) {
+    console.error('App.init() crashed:', err);
+    // Force splash away even if init crashed
+    const splash = document.getElementById('splash-screen');
+    if (splash) splash.style.display = 'none';
+    const seen = DB.get('onboardingDone');
+    if (!seen) {
+      document.getElementById('onboarding').classList.remove('hidden');
+    } else {
+      document.getElementById('app').classList.remove('hidden');
+    }
+  }
 
   // Back button
   document.getElementById('back-btn').addEventListener('click', () => App.goBack());
