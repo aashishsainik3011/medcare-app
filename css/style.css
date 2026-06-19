@@ -92,7 +92,8 @@ body {
   z-index: 9999;
   transition: opacity 0.5s ease;
 }
-.splash.fade-out { opacity: 0; pointer-events: none; }
+.splash.fade-out { opacity: 0; pointer-events: none; visibility: hidden; }
+.splash.gone { display: none !important; }
 .splash-content { text-align: center; color: white; }
 .splash-icon { font-size: 80px; animation: bounce 1s ease infinite alternate; }
 .splash-title { font-size: 48px; font-weight: 900; letter-spacing: -1px; margin-top: 12px; font-family: 'Lora', serif; }
