@@ -3,7 +3,7 @@
    GitHub Pages compatible version
 ============================================ */
 
-const CACHE_NAME = 'medcare-v3.0.0';
+const CACHE_NAME = 'medcare-v3.1.0';
 
 // Use relative paths — works on any host including GitHub Pages
 const ASSETS_TO_CACHE = [
