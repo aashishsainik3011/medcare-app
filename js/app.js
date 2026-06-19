@@ -568,7 +568,7 @@ const App = {
       const splash = document.getElementById('splash-screen');
       splash.classList.add('fade-out');
       setTimeout(() => {
-        splash.style.display = 'none';
+        splash.classList.add('gone');
         const seen = DB.get('onboardingDone');
         if (!seen) {
           document.getElementById('onboarding').classList.remove('hidden');
@@ -2620,8 +2620,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Hard fallback: if splash is still showing after 5s, force it away no matter what
   setTimeout(() => {
     const splash = document.getElementById('splash-screen');
-    if (splash && splash.style.display !== 'none') {
-      splash.style.display = 'none';
+    if (splash && !splash.classList.contains('gone')) {
+      splash.classList.add('gone');
       const seen = DB.get('onboardingDone');
       if (!seen) {
         document.getElementById('onboarding').classList.remove('hidden');
@@ -2637,7 +2637,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('App.init() crashed:', err);
     // Force splash away even if init crashed
     const splash = document.getElementById('splash-screen');
-    if (splash) splash.style.display = 'none';
+    if (splash) splash.classList.add('gone');
     const seen = DB.get('onboardingDone');
     if (!seen) {
       document.getElementById('onboarding').classList.remove('hidden');
