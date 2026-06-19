@@ -264,20 +264,40 @@
 
     <!-- ADD MEDICINE -->
     <section id="screen-add-medicine" class="screen">
-      <div class="add-method-tabs">
-        <button class="method-tab active" id="tab-manual" onclick="App.switchTab('manual')">
-          Manual Entry
-        </button>
-        <button class="method-tab" id="tab-camera" onclick="App.switchTab('camera')">
-          Scan Label
-        </button>
-      </div>
 
-      <!-- MANUAL ENTRY -->
+      <!-- MANUAL ENTRY (only mode now) -->
       <div id="manual-entry" class="entry-panel">
         <div class="form-group">
           <label class="form-label">Medicine Name *</label>
           <input type="text" id="med-name" class="form-input" placeholder="e.g. Paracetamol" />
+        </div>
+
+        <!-- MEDICINE PHOTO — simple, inline -->
+        <div class="form-group">
+          <label class="form-label">Medicine Photo
+            <span class="field-hint">Helps identify the medicine at a glance</span>
+          </label>
+          <div class="med-photo-field" id="med-photo-field">
+            <div class="med-photo-empty" id="med-photo-empty">
+              <div class="med-photo-btns">
+                <button type="button" class="med-photo-btn" onclick="document.getElementById('med-photo-cam').click()">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="1" y="5" width="18" height="13" rx="3" fill="#EEEAF8" stroke="#483D8B" stroke-width="1.5"/><circle cx="10" cy="12" r="4" fill="#B8B0E8" stroke="#483D8B" stroke-width="1.5"/><circle cx="10" cy="12" r="2" fill="#6A5ACD"/><rect x="7" y="2" width="6" height="4" rx="1.5" fill="#9B8FD4" stroke="#483D8B" stroke-width="1"/></svg>
+                  Camera
+                </button>
+                <button type="button" class="med-photo-btn" onclick="document.getElementById('med-photo-gal').click()">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="1" y="1" width="18" height="18" rx="3" fill="#EEEAF8" stroke="#483D8B" stroke-width="1.5"/><circle cx="6" cy="6" r="2" fill="#9B8FD4"/><path d="M1 13L6 8L10 12L14 7L19 13" stroke="#6A5ACD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Gallery
+                </button>
+              </div>
+              <p class="med-photo-hint">Optional — tap to add a photo of this medicine</p>
+            </div>
+            <div class="med-photo-preview hidden" id="med-photo-preview">
+              <img id="med-photo-img" src="" alt="Medicine photo" class="med-photo-thumb"/>
+              <button type="button" class="med-photo-remove" onclick="App.removeMedPhoto()">✕ Remove</button>
+            </div>
+          </div>
+          <input type="file" id="med-photo-cam" accept="image/*" capture="environment" style="display:none" onchange="App.handleMedPhoto(event)"/>
+          <input type="file" id="med-photo-gal" accept="image/*" style="display:none" onchange="App.handleMedPhoto(event)"/>
         </div>
         <div class="form-group">
           <label class="form-label">Dosage *</label>
@@ -418,70 +438,6 @@
         <button class="save-btn" onclick="App.saveMedicine()">Save Medicine</button>
       </div>
 
-      <!-- CAMERA ENTRY -->
-      <div id="camera-entry" class="entry-panel hidden">
-        <div class="camera-zone" id="camera-zone">
-          <div class="camera-placeholder" id="camera-placeholder">
-            <div class="camera-icon"><svg width="52" height="52" viewBox="0 0 52 52" fill="none"><rect x="4" y="14" width="44" height="32" rx="6" fill="#EEEAF8" stroke="#483D8B" stroke-width="2"/><circle cx="26" cy="30" r="9" fill="#B8B0E8" stroke="#483D8B" stroke-width="2"/><circle cx="26" cy="30" r="5" fill="#6A5ACD"/><rect x="18" y="8" width="16" height="8" rx="3" fill="#9B8FD4" stroke="#483D8B" stroke-width="1.5"/><circle cx="40" cy="20" r="3" fill="#9B8FD4"/></svg></div>
-            <p class="camera-hint">Take a photo of your medicine strip, bottle or prescription</p>
-            <div class="ai-badge">✨ Powered by AI — reads labels automatically</div>
-            <div class="camera-btns">
-              <button class="cam-btn cam-btn--primary" onclick="App.openCamera()">Open Camera</button>
-              <button class="cam-btn cam-btn--secondary" onclick="App.openGallery()">Choose from Gallery</button>
-            </div>
-            <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="App.handleImageCapture(event)" />
-            <input type="file" id="gallery-input" accept="image/*" style="display:none" onchange="App.handleImageCapture(event)" />
-          </div>
-          <div class="camera-preview hidden" id="camera-preview">
-            <img id="captured-image" src="" alt="Captured medicine" class="captured-img" />
-            <button class="retake-btn" onclick="App.retakePhoto()">Retake Photo</button>
-          </div>
-        </div>
-
-        <div class="ocr-result hidden" id="ocr-result">
-          <div class="ocr-header">
-            <div class="ocr-spinner" id="ocr-spinner">
-              <div class="spinner"></div>
-              <p>Reading medicine label...</p>
-            </div>
-            <div class="ocr-done hidden" id="ocr-done">
-              <span class="ocr-check" style="color:#3A7D44;font-size:36px;font-weight:900;">✓</span>
-              <p>Medicine detected! Please verify:</p>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Medicine Name</label>
-            <input type="text" id="ocr-med-name" class="form-input" placeholder="Detected medicine name" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Dosage / Strength</label>
-            <input type="text" id="ocr-dosage" class="form-input" placeholder="Detected dosage" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Additional Info</label>
-            <input type="text" id="ocr-extra" class="form-input" placeholder="Manufacturer / Instructions" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Reminder Times</label>
-            <div class="reminder-times-list">
-              <div class="reminder-time-row">
-                <select class="form-input time-slot-select">
-                  <option value="morning">🌅 Morning (8:00 AM)</option>
-                  <option value="afternoon">☀️ Afternoon (1:00 PM)</option>
-                  <option value="evening">🌆 Evening (6:00 PM)</option>
-                  <option value="night">🌙 Night (9:00 PM)</option>
-                </select>
-                <input type="time" class="form-input time-custom" value="08:00" />
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Notes</label>
-            <textarea id="ocr-notes" class="form-input form-textarea" placeholder="e.g. Take after meals"></textarea>
-          </div>
-          <button class="save-btn" onclick="App.saveOCRMedicine()">Save Medicine</button>
-        </div>
-      </div>
     </section>
 
     <!-- SCHEDULE -->

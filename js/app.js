@@ -1094,13 +1094,51 @@ const App = {
     if (label) label.textContent = `${colorName} ${shapeName}`;
   },
 
-  // ── ADD MEDICINE ──────────────────────────
-  switchTab(tab) {
-    document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
-    document.getElementById('tab-camera').classList.toggle('active', tab === 'camera');
-    document.getElementById('manual-entry').classList.toggle('hidden', tab !== 'manual');
-    document.getElementById('camera-entry').classList.toggle('hidden', tab !== 'camera');
+  // ── MEDICINE PHOTO ────────────────────────
+  handleMedPhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const compressed = await this._compressImage(e.target.result, 600, 0.80);
+      this.capturedImageData = compressed;
+      document.getElementById('med-photo-img').src = compressed;
+      document.getElementById('med-photo-empty').classList.add('hidden');
+      document.getElementById('med-photo-preview').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
   },
+
+  removeMedPhoto() {
+    this.capturedImageData = null;
+    const photoPreview = document.getElementById('med-photo-preview');
+    const photoEmpty = document.getElementById('med-photo-empty');
+    if (photoPreview) photoPreview.classList.add('hidden');
+    if (photoEmpty) photoEmpty.classList.remove('hidden');
+    const photoImg = document.getElementById('med-photo-img');
+    if (photoImg) photoImg.src = '';
+    document.getElementById('med-photo-img').src = '';
+    document.getElementById('med-photo-preview').classList.add('hidden');
+    document.getElementById('med-photo-empty').classList.remove('hidden');
+  },
+
+  _compressImage(dataUrl, maxPx, quality) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
+    });
+  },
+
+  // ── ADD MEDICINE ──────────────────────────
 
   selectType(btn) {
     document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
@@ -1188,33 +1226,6 @@ const App = {
     setTimeout(() => this.navigate('dashboard'), 800);
   },
 
-  saveOCRMedicine() {
-    const name = document.getElementById('ocr-med-name').value.trim();
-    const dosage = document.getElementById('ocr-dosage').value.trim();
-    if (!name) { this.toast('Please enter medicine name', 'error'); return; }
-
-    const medicine = {
-      id: Util.uid(),
-      name,
-      dosage,
-      type: 'tablet',
-      frequency: 'daily',
-      reminders: this.collectReminders('#camera-entry'),
-      startDate: Util.today(),
-      endDate: '',
-      notes: (document.getElementById('ocr-notes')?.value || '').trim(),
-      photo: this.capturedImageData,
-      extra: document.getElementById('ocr-extra').value.trim(),
-      active: true,
-      createdAt: Date.now()
-    };
-
-    DB.push('medicines', medicine);
-    Reminders.schedule(medicine);
-    this.toast('✅ Medicine saved with photo!', 'success');
-    this.capturedImageData = null;
-    setTimeout(() => this.navigate('dashboard'), 800);
-  },
 
   resetAddForm() {
     document.getElementById('med-name').value = '';
@@ -1233,104 +1244,10 @@ const App = {
   },
 
   // ── CAMERA / OCR via Claude Vision API ────
-  openCamera() {
-    document.getElementById('camera-input').click();
-  },
 
-  openGallery() {
-    document.getElementById('gallery-input').click();
-  },
 
-  retakePhoto() {
-    document.getElementById('camera-placeholder').classList.remove('hidden');
-    document.getElementById('camera-preview').classList.add('hidden');
-    document.getElementById('ocr-result').classList.add('hidden');
-    this.capturedImageData = null;
-  },
 
-  async handleImageCapture(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    event.target.value = '';
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const imageData = e.target.result;
-      this.capturedImageData = imageData;
-
-      // Show preview
-      document.getElementById('captured-image').src = imageData;
-      document.getElementById('camera-placeholder').classList.add('hidden');
-      document.getElementById('camera-preview').classList.remove('hidden');
-
-      // Show scanning panel
-      document.getElementById('ocr-result').classList.remove('hidden');
-      document.getElementById('ocr-spinner').classList.remove('hidden');
-      document.getElementById('ocr-done').classList.add('hidden');
-
-      // Update spinner message
-      const spinnerP = document.querySelector('#ocr-spinner p');
-      if (spinnerP) spinnerP.textContent = 'Reading medicine label with AI...';
-
-      // Run Claude Vision
-      let parsed = { name: '', dosage: '', extra: '', type: 'tablet', notes: '' };
-      try {
-        parsed = await this._recogniseMedicineWithClaude(imageData);
-      } catch (err) {
-        console.warn('Claude Vision failed:', err);
-        this.toast('Could not read label — please fill in manually', 'error');
-      }
-
-      // Populate fields
-      document.getElementById('ocr-med-name').value  = parsed.name    || '';
-      document.getElementById('ocr-dosage').value     = parsed.dosage  || '';
-      document.getElementById('ocr-extra').value      = parsed.extra   || '';
-      if (document.getElementById('ocr-notes')) {
-        document.getElementById('ocr-notes').value = parsed.notes || '';
-      }
-
-      // Hide spinner, show done
-      document.getElementById('ocr-spinner').classList.add('hidden');
-      document.getElementById('ocr-done').classList.remove('hidden');
-
-      // Update done message
-      const doneP = document.querySelector('#ocr-done p');
-      if (doneP) {
-        doneP.textContent = parsed.name
-          ? 'Medicine detected! Please check and confirm:'
-          : 'Could not read label clearly. Please fill in manually.';
-      }
-    };
-    reader.readAsDataURL(file);
-  },
-
-  async _recogniseMedicineWithClaude(imageDataUrl) {
-    // Compress image to reduce API payload (max ~800px, JPEG 80%)
-    const compressed = await this._compressImage(imageDataUrl, 800, 0.80);
-
-    // Strip the data:image/...;base64, prefix
-    const base64Data  = compressed.split(',')[1];
-    const mediaType   = compressed.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-
-    const prompt = `You are analysing a photo of a medicine packaging, strip, bottle, or prescription label.
-
-Extract the following information and respond ONLY with a valid JSON object — no explanation, no markdown, no extra text:
-
-{
-  "name": "Medicine name only (e.g. Paracetamol, Metformin, Amlodipine)",
-  "dosage": "Strength/dosage (e.g. 500mg, 5mg, 650mg, 10ml)",
-  "type": "One of: tablet, capsule, syrup, injection, drops, other",
-  "extra": "Manufacturer name or any other useful info visible",
-  "notes": "Any instructions visible (e.g. Take after meals, Store below 25°C)"
-}
-
-If a field is not clearly visible, use an empty string "".
-Do not guess or invent values not visible in the image.
-Respond with ONLY the JSON object.`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 300,
@@ -1380,25 +1297,6 @@ Respond with ONLY the JSON object.`;
   },
 
   // Compress image using canvas — reduces file size before sending to API
-  _compressImage(dataUrl, maxPx, quality) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let { width, height } = img;
-
-        // Scale down if larger than maxPx
-        const scale = Math.min(1, maxPx / Math.max(width, height));
-        canvas.width  = Math.round(width  * scale);
-        canvas.height = Math.round(height * scale);
-
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = dataUrl;
-    });
-  },
 
   // ── SCHEDULE ──────────────────────────────
   loadSchedule() {

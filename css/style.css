@@ -2153,3 +2153,67 @@ body.dark-mode .pill-shape-btn.active { background: #1a1830; }
   align-items: center;
   justify-content: center;
 }
+
+/* ============================================
+   MEDICINE PHOTO FIELD (Add Medicine form)
+============================================ */
+.med-photo-field {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+.med-photo-empty {
+  padding: 20px 16px;
+  text-align: center;
+}
+.med-photo-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.med-photo-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid var(--primary);
+  background: #EEEAF8;
+  color: var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.med-photo-btn:active { background: var(--primary); color: white; }
+.med-photo-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.med-photo-preview {
+  position: relative;
+}
+.med-photo-thumb {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  display: block;
+}
+.med-photo-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+}
