@@ -3,7 +3,7 @@
    Resilient install — one bad file won't break the app
 ============================================ */
 
-const CACHE_NAME = 'medcare-v3.2.0';
+const CACHE_NAME = 'medcare-v3.1.0';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -94,4 +94,19 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'MC_KEEPALIVE') {
     event.source.postMessage({ type: 'MC_SW_ALIVE' });
   }
+});
+
+// Open/focus the app when user taps a notification
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      // If app is already open, focus it
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
+      }
+      // Otherwise open a new window
+      return clients.openWindow('./');
+    })
+  );
 });
