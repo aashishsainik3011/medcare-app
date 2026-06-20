@@ -3,7 +3,7 @@
    Resilient install — one bad file won't break the app
 ============================================ */
 
-const CACHE_NAME = 'medcare-v3.1.0';
+const CACHE_NAME = 'medcare-v3.2.0';
 
 const ASSETS_TO_CACHE = [
   './',
