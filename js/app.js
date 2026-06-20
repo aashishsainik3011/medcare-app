@@ -1229,6 +1229,10 @@ const App = {
 
   resetAddForm() {
     this.capturedImageData = null;
+    const photoImg = document.getElementById('med-photo-img');
+    const photoPreview = document.getElementById('med-photo-preview');
+    if (photoImg) photoImg.src = '';
+    if (photoPreview) photoPreview.classList.add('hidden');
     document.getElementById('med-name').value = '';
     document.getElementById('med-dosage').value = '';
     document.getElementById('med-notes').value = '';
