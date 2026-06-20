@@ -322,10 +322,17 @@ const Reminders = {
     this._poll();
     this._pollInterval = setInterval(() => this._poll(), 30_000);
 
-    // Also poll when tab becomes visible again (user returns to app)
+    // Poll when tab becomes visible again (user returns to app)
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') this._poll();
     });
+
+    // Poll on SW background tick (fires every ~60s even when tab is backgrounded)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'MC_BG_TICK') this._poll();
+      });
+    }
   },
 
   _cleanupBadMissedEntries() {
@@ -377,9 +384,9 @@ const Reminders = {
         );
         if (logged) return;
 
-        // Within the fire window: from scheduled time up to 29 min after
+        // Within the fire window: from scheduled time up to 59 min after
         const diff = nowMin - rMin;
-        if (diff < 0 || diff >= 29) return;
+        if (diff < 0 || diff >= 59) return;
 
         // Check snooze
         const snoozeTs = this._snoozeUntil[snoozeKey] || 0;
@@ -510,16 +517,22 @@ const Notify = {
 
   send(title, body, tag = 'medcare') {
     if (Notification.permission !== 'granted') return;
-    try {
-      new Notification(title, {
-        body,
-        tag,
-        icon: 'icons/icon-192.png',
-        badge: 'icons/icon-72.png',
-        requireInteraction: true
+    // Must use SW showNotification on mobile (Android PWA, iOS) — new Notification() is blocked
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, {
+          body,
+          tag,
+          icon: 'icons/icon-192.png',
+          badge: 'icons/icon-72.png',
+          requireInteraction: true,
+          vibrate: [400, 150, 400, 150, 600]
+        });
+      }).catch(() => {
+        try { new Notification(title, { body, tag, icon: 'icons/icon-192.png' }); } catch(e) {}
       });
-    } catch (e) {
-      console.warn('Notification error:', e);
+    } else {
+      try { new Notification(title, { body, tag, icon: 'icons/icon-192.png' }); } catch(e) {}
     }
   }
 };
