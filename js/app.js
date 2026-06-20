@@ -298,7 +298,6 @@ const Reminders = {
   _firedToday: {},   // key: "medId_time_date" → true, prevents double-firing
   _snoozeUntil: {},  // key: "medId_time" → timestamp when snooze expires
   _activeAlarm: null,// currently showing alarm data
-  _dailySummaryFiredDate: null, // date string when daily summary was last sent
 
   // Call once on app start
   startPolling() {
@@ -319,13 +318,9 @@ const Reminders = {
     // medicine was not actually scheduled (bug from earlier code versions).
     this._cleanupBadMissedEntries();
 
-    // Restore daily summary fired date
-    this._dailySummaryFiredDate = DB.get('dailySummaryFiredDate') || null;
-
     // Poll immediately, then every 30 seconds
     this._poll();
-    this._checkDailySummary();
-    this._pollInterval = setInterval(() => { this._poll(); this._checkDailySummary(); }, 30_000);
+    this._pollInterval = setInterval(() => this._poll(), 30_000);
 
     // Also poll when tab becomes visible again (user returns to app)
     document.addEventListener('visibilitychange', () => {
@@ -350,58 +345,6 @@ const Reminders = {
       DB.set('history', cleaned);
       console.log(`MedCare: cleaned ${before - cleaned.length} invalid missed entries`);
     }
-  },
-
-  // ── DAILY SUMMARY at 21:00 ────────────────
-  _checkDailySummary() {
-    const s = DB.get('settings') || {};
-    if (s.summary === false) return; // toggle is OFF
-
-    const now = new Date();
-    const today = Util.today();
-
-    // Fire only once per day, at or after 21:00
-    if (now.getHours() < 21) return;
-    if (this._dailySummaryFiredDate === today) return;
-
-    // Mark as fired for today
-    this._dailySummaryFiredDate = today;
-    DB.set('dailySummaryFiredDate', today);
-
-    // Build summary from today's history
-    const medicines = DB.get('medicines') || [];
-    const history = DB.get('history') || [];
-    const todayHistory = history.filter(h => h.date === today);
-
-    let taken = 0, missed = 0, skipped = 0;
-    todayHistory.forEach(h => {
-      if (h.status === 'taken' || h.status === 'taken-late') taken++;
-      else if (h.status === 'missed') missed++;
-      else if (h.status === 'skipped') skipped++;
-    });
-
-    // Count total doses scheduled for today
-    let totalDoses = 0;
-    medicines.forEach(med => {
-      if (!med.active) return;
-      if (!Util.isScheduledOnDate(med, today)) return;
-      totalDoses += (med.reminders || []).length;
-    });
-
-    let body;
-    if (totalDoses === 0) {
-      body = 'No medicines scheduled today.';
-    } else if (missed === 0 && skipped === 0) {
-      body = `Great job! ✅ All ${taken} dose${taken !== 1 ? 's' : ''} taken today.`;
-    } else {
-      const parts = [];
-      if (taken > 0)   parts.push(`✅ ${taken} taken`);
-      if (missed > 0)  parts.push(`❌ ${missed} missed`);
-      if (skipped > 0) parts.push(`⏭️ ${skipped} skipped`);
-      body = parts.join(' · ') + ` (of ${totalDoses} scheduled)`;
-    }
-
-    Notify.send('📋 MedCare Daily Summary', body, 'daily-summary');
   },
 
   _poll() {
@@ -1271,7 +1214,7 @@ const App = {
       notes: document.getElementById('med-notes').value.trim(),
       stock,          // null means not tracking
       stockInitial: stock,
-      photo: null,
+      photo: this.capturedImageData || null,
       active: true,
       createdAt: Date.now()
     };
@@ -1285,6 +1228,7 @@ const App = {
 
 
   resetAddForm() {
+    this.capturedImageData = null;
     document.getElementById('med-name').value = '';
     document.getElementById('med-dosage').value = '';
     document.getElementById('med-notes').value = '';
@@ -1661,8 +1605,9 @@ Return ONLY valid JSON in this exact format, no extra text:
     const med = medicines.find(m => m.id === id);
     if (!med) { this.toast('Medicine not found', 'error'); return; }
 
-    // Initialise edit colour from current medicine
+    // Initialise edit state from current medicine
     this._editCurrentColor = med.pillColor || 'white';
+    this._editCapturedPhoto = null; // reset so previous session doesn't bleed in
 
     // Build reminder rows HTML
     const reminderRowsHtml = (med.reminders || [{ slot: 'morning', time: '08:00' }]).map((r, i) => `
@@ -1756,13 +1701,68 @@ Return ONLY valid JSON in this exact format, no extra text:
         <label class="form-label">Notes</label>
         <textarea id="edit-notes" class="form-input form-textarea">${med.notes || ''}</textarea>
       </div>
+      <div class="form-group">
+        <label class="form-label">Medicine Photo</label>
+        <div class="med-photo-field" id="edit-photo-field">
+          ${med.photo
+            ? `<div class="med-photo-preview" id="edit-photo-preview">
+                <img id="edit-photo-img" src="${med.photo}" alt="Medicine photo" class="med-photo-thumb"/>
+                <button type="button" class="med-photo-remove" onclick="App._editRemovePhoto()">✕ Remove</button>
+               </div>
+               <div class="med-photo-empty hidden" id="edit-photo-empty">
+                 <div class="med-photo-btns">
+                   <button type="button" class="med-photo-btn" onclick="document.getElementById('edit-photo-cam').click()">📷 Camera</button>
+                   <button type="button" class="med-photo-btn" onclick="document.getElementById('edit-photo-gal').click()">🖼️ Gallery</button>
+                 </div>
+                 <p class="med-photo-hint">Tap to add a photo of this medicine</p>
+               </div>`
+            : `<div class="med-photo-empty" id="edit-photo-empty">
+                 <div class="med-photo-btns">
+                   <button type="button" class="med-photo-btn" onclick="document.getElementById('edit-photo-cam').click()">📷 Camera</button>
+                   <button type="button" class="med-photo-btn" onclick="document.getElementById('edit-photo-gal').click()">🖼️ Gallery</button>
+                 </div>
+                 <p class="med-photo-hint">Tap to add a photo of this medicine</p>
+               </div>
+               <div class="med-photo-preview hidden" id="edit-photo-preview">
+                 <img id="edit-photo-img" src="" alt="Medicine photo" class="med-photo-thumb"/>
+                 <button type="button" class="med-photo-remove" onclick="App._editRemovePhoto()">✕ Remove</button>
+               </div>`
+          }
+        </div>
+        <input type="file" id="edit-photo-cam" accept="image/*" capture="environment" class="hidden" onchange="App._editHandlePhoto(event)"/>
+        <input type="file" id="edit-photo-gal" accept="image/*" class="hidden" onchange="App._editHandlePhoto(event)"/>
+      </div>
       <button class="modal-btn modal-btn--primary" onclick="App._saveEditedMedicine('${id}')">Save Changes</button>
       <button class="modal-btn modal-btn--secondary" style="margin-top:10px" onclick="App.closeModal()">Cancel</button>
     `);
   },
 
-  // Edit modal colour helper
+  // Edit modal helpers
   _editCurrentColor: 'white',
+  _editCapturedPhoto: null,   // holds new photo chosen in edit modal (null = keep existing)
+
+  async _editHandlePhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const compressed = await this._compressImage(e.target.result, 600, 0.80);
+      this._editCapturedPhoto = compressed;
+      const img = document.getElementById('edit-photo-img');
+      if (img) img.src = compressed;
+      document.getElementById('edit-photo-preview')?.classList.remove('hidden');
+      document.getElementById('edit-photo-empty')?.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _editRemovePhoto() {
+    this._editCapturedPhoto = '__removed__';
+    document.getElementById('edit-photo-preview')?.classList.add('hidden');
+    document.getElementById('edit-photo-empty')?.classList.remove('hidden');
+    const img = document.getElementById('edit-photo-img');
+    if (img) img.src = '';
+  },
 
   _editSetColor(btn) {
     document.querySelectorAll('.edit-color-grid .pill-color-btn').forEach(b => b.classList.remove('active'));
@@ -1832,20 +1832,31 @@ Return ONLY valid JSON in this exact format, no extra text:
       reminders.push({ slot, time });
     });
 
-    DB.update('medicines', id, (med) => ({
-      ...med,
-      name,
-      dosage:    (document.getElementById('edit-dosage')?.value || '').trim(),
-      type:      document.getElementById('edit-type')?.value || med.type,
-      pillColor: this._editCurrentColor || med.pillColor || 'white',
-      pillShape: Util.typeToShape[document.getElementById('edit-type')?.value || med.type] || 'round',
-      frequency,
-      weekdays,
-      reminders: reminders.length ? reminders : med.reminders,
-      startDate: document.getElementById('edit-start')?.value || med.startDate,
-      endDate:   document.getElementById('edit-end')?.value || '',
-      notes:     (document.getElementById('edit-notes')?.value || '').trim(),
-    }));
+    DB.update('medicines', id, (med) => {
+      // Determine final photo value:
+      // '__removed__' → user explicitly removed it → null
+      // new data URL   → user picked a new photo → use it
+      // null           → no change in this session → keep existing
+      let photo = med.photo;
+      if (this._editCapturedPhoto === '__removed__') photo = null;
+      else if (this._editCapturedPhoto) photo = this._editCapturedPhoto;
+
+      return {
+        ...med,
+        name,
+        dosage:    (document.getElementById('edit-dosage')?.value || '').trim(),
+        type:      document.getElementById('edit-type')?.value || med.type,
+        pillColor: this._editCurrentColor || med.pillColor || 'white',
+        pillShape: Util.typeToShape[document.getElementById('edit-type')?.value || med.type] || 'round',
+        frequency,
+        weekdays,
+        reminders: reminders.length ? reminders : med.reminders,
+        startDate: document.getElementById('edit-start')?.value || med.startDate,
+        endDate:   document.getElementById('edit-end')?.value || '',
+        notes:     (document.getElementById('edit-notes')?.value || '').trim(),
+        photo,
+      };
+    });
 
     const updated = (DB.get('medicines') || []).find(m => m.id === id);
     if (updated) Reminders.schedule(updated);
