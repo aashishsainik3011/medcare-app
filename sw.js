@@ -3,7 +3,7 @@
    GitHub Pages compatible version
 ============================================ */
 
-const CACHE_NAME = 'medcare-v3.0.0';
+const CACHE_NAME = 'medcare-v3.2.0';
 
 // Use relative paths — works on any host including GitHub Pages
 const ASSETS_TO_CACHE = [
@@ -22,12 +22,19 @@ const ASSETS_TO_CACHE = [
   './icons/icon-512.png'
 ];
 
-// Install — cache all assets
+// Install — cache each asset independently so one bad/missing file doesn't
+// silently break the whole offline install (cache.addAll fails all-or-nothing).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS_TO_CACHE))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(
+        ASSETS_TO_CACHE.map(url =>
+          cache.add(url).catch(err => {
+            console.warn('[SW] Failed to cache', url, err);
+          })
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
