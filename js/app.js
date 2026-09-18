@@ -298,12 +298,14 @@ const Reminders = {
   _firedToday: {},   // key: "medId_time_date" → true, prevents double-firing
   _snoozeUntil: {},  // key: "medId_time" → timestamp when snooze expires
   _activeAlarm: null,// currently showing alarm data
+  _summaryFiredDate: '', // date string of the last day the 9 PM summary was sent
 
   // Call once on app start
   startPolling() {
     // Restore fired-today from storage so page reload doesn't re-fire
     this._firedToday = DB.get('firedToday') || {};
     this._snoozeUntil = DB.get('snoozeUntil') || {};
+    this._summaryFiredDate = DB.get('summaryFiredDate') || '';
 
     // Clear yesterday's fired records
     const today = Util.today();
@@ -439,6 +441,56 @@ const Reminders = {
         App.refreshDashboard();
       });
     });
+
+    this._checkDailySummary(medicines, history, today, now);
+  },
+
+  // Sends one "how did today go" notification at/after 9 PM, only once per day,
+  // and only if the person hasn't turned it off in Settings.
+  _checkDailySummary(medicines, history, today, now) {
+    const settings = DB.get('settings') || {};
+    if (settings.summary === false) return;           // user turned it off
+    if (this._summaryFiredDate === today) return;      // already sent today
+    if (now.getHours() < 21) return;                   // not 9 PM yet
+
+    const todayMeds = medicines.filter(m => {
+      if (!m.active) return false;
+      if (m.startDate && today < m.startDate) return false;
+      if (m.endDate && today > m.endDate) return false;
+      return Util.isScheduledOnDate(m, today);
+    });
+    const totalSlots = todayMeds.reduce((acc, m) => acc + (m.reminders || []).length, 0);
+
+    // Nothing was scheduled today — don't bother sending a summary.
+    if (totalSlots === 0) {
+      this._summaryFiredDate = today;
+      DB.set('summaryFiredDate', today);
+      return;
+    }
+
+    const takenCount = history.filter(h =>
+      h.date === today && (h.status === 'taken' || h.status === 'taken-late')
+    ).length;
+    const missedCount = history.filter(h => {
+      if (h.date !== today || h.status !== 'missed') return false;
+      const med = medicines.find(m => m.id === h.medicineId);
+      return med ? Util.isScheduledOnDate(med, h.date) : false;
+    }).length;
+    const pendingCount = Math.max(0, totalSlots - takenCount - missedCount);
+
+    let body;
+    if (missedCount === 0 && pendingCount === 0) {
+      body = `Great job! You took all ${totalSlots} of ${totalSlots} medicines today.`;
+    } else if (missedCount === 0) {
+      body = `You took ${takenCount} of ${totalSlots} medicines today. ${pendingCount} still pending.`;
+    } else {
+      body = `You took ${takenCount} of ${totalSlots} medicines today. ${missedCount} missed — check your history.`;
+    }
+
+    Notify.send('📋 Your Daily Medicine Summary', body, 'daily-summary');
+
+    this._summaryFiredDate = today;
+    DB.set('summaryFiredDate', today);
   },
 
   _fireAlarm(medicine, time) {
@@ -1260,77 +1312,6 @@ const App = {
     document.querySelectorAll('.pill-shape-btn').forEach(b => b.classList.toggle('active', b.dataset.shape === 'round'));
     this.updatePillPreview();
   },
-
-  // ── CAMERA / OCR via Claude Vision API ────
-  async scanMedicineLabel(imageDataUrl) {
-    const base64Data = imageDataUrl.split(',')[1];
-    const mediaType  = imageDataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-
-    const prompt = `You are a medicine label reader. Look at this medicine packaging or label image and extract:
-1. Medicine name (brand name or generic)
-2. Dosage/strength (e.g. 500mg, 10mg)
-3. Type (tablet, capsule, syrup, injection, drops, inhaler, cream, patch, or other)
-4. Any extra info (e.g. "Extended Release", "Chewable")
-5. Short usage notes if visible
-
-Return ONLY valid JSON in this exact format, no extra text:
-{"name":"","dosage":"","type":"tablet","extra":"","notes":""}`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 300,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Data
-              }
-            },
-            {
-              type: 'text',
-              text: prompt
-            }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data.content?.[0]?.text || '{}';
-
-    // Parse JSON safely
-    try {
-      const clean = text.replace(/```json|```/g, '').trim();
-      return JSON.parse(clean);
-    } catch {
-      // If JSON parse fails, try to extract name/dosage with regex as fallback
-      const nameMatch  = text.match(/"name"\s*:\s*"([^"]+)"/);
-      const doseMatch  = text.match(/"dosage"\s*:\s*"([^"]+)"/);
-      return {
-        name:   nameMatch  ? nameMatch[1]  : '',
-        dosage: doseMatch  ? doseMatch[1]  : '',
-        type:   'tablet',
-        extra:  '',
-        notes:  ''
-      };
-    }
-  },
-
-  // Compress image using canvas — reduces file size before sending to API
 
   // ── SCHEDULE ──────────────────────────────
   loadSchedule() {
